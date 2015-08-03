@@ -1,0 +1,38 @@
+= Miscellaneous Notes
+
+== Enabling KVM
+
+If `/dev/kvm` doesn't exist, check dmesg for a line like:
+
+----
+[   24.781959] kvm: disabled by bios
+----
+
+Enable virtualization support in BIOS.
+
+== Installing on QEMU from an ISO
+
+----
+vm.sh $VM -boot d -cdrom $ISO -no-reboot
+----
+
+== GRUB and TTY on Serial Console
+
+Edit `/etc/default/grub`:
+
+----
+GRUB_CMDLINE_LINUX_DEFAULT="quiet console=ttyS0,115200"
+# Remove GRUB_TERMINAL_{INPUT,OUTPUT}
+GRUB_TERMINAL=serial
+GRUB_SERIAL_COMMAND="serial --speed=115200"
+----
+
+And run `grub-mkconfig -o /boot/grub/grub.cfg`.
+
+== Host Forwarding to QEMU
+
+To forward port 2222 on the host to port 22 on the VM, start QEMU with:
+
+----
+-netdev user,id=vlan0,hostfwd=tcp::2222-:22 -device virtio-net,netdev=vlan0
+----
