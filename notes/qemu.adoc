@@ -1,4 +1,4 @@
-= Miscellaneous Notes
+= QEMU Notes
 
 == Enabling KVM
 
