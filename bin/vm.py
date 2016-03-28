@@ -12,7 +12,6 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(
-        usage='usage: vm.py [OPTIONS] VM -- [QEMU_OPTION [QEMU_OPTION ...]]',
         description='Manage QEMU virtual machines')
     parser.add_argument(
         '--dry-run', action='store_true',
@@ -42,13 +41,13 @@ def main():
     parser_run.add_argument(
         'name', metavar='NAME', help='name of the VM to run')
     parser_run.add_argument(
-        'qemu_options', metavar='QEMU_OPTION', nargs='*',
-        help='extra options to pass directly to QEMU')
-    parser_run.add_argument(
         '-k', '--kernel', help='kernel in ~/linux/builds to run')
     parser_run.add_argument(
         '-a', '--append', action='append', default=[],
         help='append a kernel command line argument (only when passing -k)')
+    parser_run.add_argument(
+        'qemu_options', metavar='QEMU_OPTION', nargs='*',
+        help='extra options to pass directly to QEMU')
     parser_run.set_defaults(func=cmd_run)
 
     args = parser.parse_args()
