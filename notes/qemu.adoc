@@ -13,7 +13,7 @@ Enable virtualization support in BIOS.
 == Installing on QEMU from an ISO
 
 ----
-vm.sh $VM -boot d -cdrom $ISO -no-reboot
+vm.py $VM -- -boot d -cdrom $ISO -no-reboot
 ----
 
 == GRUB and TTY on Serial Console
