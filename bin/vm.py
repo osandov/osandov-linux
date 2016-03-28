@@ -56,7 +56,7 @@ def main():
 
 def chdir(args, path, always_chdir=True):
     if args.dry_run:
-        print('chdir {}'.format(shlex.quote(path)))
+        print('cd {}'.format(shlex.quote(path)))
     if (not args.dry_run) or always_chdir:
         os.chdir(path)
 
