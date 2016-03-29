@@ -1,0 +1,25 @@
+# Maintainer: Omar Sandoval <osandov@osandov.com>
+
+pkgname=vm-modules-mounter
+pkgver=r1
+pkgrel=1
+pkgdesc="systemd generator for mounting kernel modules over 9p in a VM"
+arch=('x86_64' 'i686')
+url="https://github.com/osandov/osandov-linux"
+license=('GPL3')
+depends=('systemd')
+makedepends=('git')
+source=(9p-modules-generator.c config.mk Makefile)
+sha256sums=('468299024d975a2c78cb328e11d8654b8d9f478d02369998aadebf70471b3269'
+            '298cc2b673e883453a290d1a98f11991c5608852778c65dcb78fec02a190b4bd'
+            'eeb1a209f3764f5b1c6ac48202f418f57f9571e3f6a6607d7fe403deb88482d8')
+
+build() {
+  make
+}
+
+package() {
+  make PREFIX=/usr DESTDIR="$pkgdir/" install
+}
+
+# vim:set ts=2 sw=2 et:

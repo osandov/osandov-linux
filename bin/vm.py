@@ -121,6 +121,11 @@ def cmd_run(args):
         image_name = image_name.decode('utf-8').strip()
         kernel_image_path = os.path.join(build_path, image_name)
         replace_option(qemu_options, '-kernel', kernel_image_path)
+        virtfs_opts = [
+            'local', 'path={}'.format(build_path), 'security_model=none',
+            'readonly', 'mount_tag=modules'
+        ]
+        add_option(qemu_options, '-virtfs', ','.join(virtfs_opts))
 
     explicit_append = False
 
