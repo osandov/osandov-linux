@@ -36,3 +36,42 @@ To forward port 2222 on the host to port 22 on the VM, start QEMU with:
 ----
 -netdev user,id=vlan0,hostfwd=tcp::2222-:22 -device virtio-net,netdev=vlan0
 ----
+
+== Accessing the Host's USB Devices
+
+A QEMU guest can access the host's USB devices. QEMU uses libusb to access the USB device node directly.
+
+For example, to access my USB SATA enclosure, I do the following.
+
+First, remove the disks from the host just to be safe:
+
+----
+$ for dev_delete in /sys/block/sd[b-e]/device/delete; do
+	sudo sh -c "echo 1 > ${dev_delete}"
+done
+----
+
+Then, find the bus and device number of the enclosure:
+
+----
+$ lsusb
+...
+Bus 002 Device 004: ID 152d:0567 JMicron Technology Corp. / JMicron USA Technology Corp. JMS567 SATA 6Gb/s bridge
+...
+$ bus=002
+$ device=004
+----
+
+Make it owned by myself so I don't have to run QEMU as root:
+
+----
+$ sudo chown osandov:users "/dev/bus/usb/${bus}/${device}"
+----
+
+Then run QEMU with
+
+----
+-usb -device nec-usb-xhci,id=xhci -device "usb-host,hostbus=${bus},hostaddr=${device}"
+----
+
+`-usb` creates a USB 2 hub, `-device nec-usb-xhci,id=xhci` creates a USB 3 hub, and `-device usb-host` attaches the device.
