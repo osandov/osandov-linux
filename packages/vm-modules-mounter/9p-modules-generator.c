@@ -180,7 +180,7 @@ static int generate_modules_unit(const char *kernelrelease,
 			       "Description=Sets up modules mounted via 9p\n"
 			       "DefaultDependencies=no\n"
 			       "After=%s\n"
-			       "Before=sysinit.target systemd-modules-load.service\n"
+			       "Before=sysinit.target systemd-modules-load.service systemd-udevd.service\n"
 			       "\n"
 			       "[Service]\n"
 			       "Type=oneshot\n"
