@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 
 import argparse
+import ast
 import collections
 import enum
+import io
+import linecache
 import re
 import subprocess
 import sys
@@ -25,8 +28,12 @@ Assignment = collections.namedtuple('Assignment', ['member'])
 identifier_re = re.compile(r'[A-Z_a-z][0-9A-Z_a-z]*')
 whitespace_re = re.compile(r'\s*')
 
-
-GrepLine = collections.namedtuple('GrepLine', ['file', 'number', 'contents', 'is_context'])
+SpatchMatch = collections.namedtuple('SpatchMatch', [
+    'file', 'current_element', 'line', 'column', 'line_end', 'column_end',
+])
+GrepLine = collections.namedtuple('GrepLine', [
+    'file', 'line', 'contents', 'is_context', 'match_start', 'match_end',
+])
 
 
 class ParseError(Exception):
@@ -154,81 +161,94 @@ def convert_pattern_to_spatch(pattern, outfile):
         assert isinstance(pattern, TypeSpec)
         type_spec = pattern
 
-    outfile.write('@@\n')
     if type_spec.type == SpecType.struct:
-        outfile.write('struct {} var1;\n'.format(type_spec.name))
+        type_str = 'struct {}'.format(type_spec.name)
     elif type_spec.type == SpecType.union:
-        outfile.write('union {} var1;\n'.format(type_spec.name))
+        type_str = 'union {}'.format(type_spec.name)
     elif type_spec.type == SpecType.enum:
-        outfile.write('enum {} var1;\n'.format(type_spec.name))
+        type_str = 'enum {}'.format(type_spec.name)
     elif type_spec.type == SpecType.typedef:
-        outfile.write('{} var1;\n'.format(type_spec.name))
-    outfile.write('@@\n')
+        type_str = type_spec.name
 
-    if isinstance(pattern, TypeSpec):
-        outfile.write('* var1\n')
-    elif isinstance(pattern, Member):
-        outfile.write('* var1.{}\n'.format(pattern.name))
-    elif isinstance(pattern, Assignment):
-        outfile.write('* var1.{} = ...\n'.format(pattern.member.name))
+    if isinstance(pattern, Member):
+        outfile.write("""\
+@rule1@
+position p1;
+expression E1;
+{type} v1;
+@@
+v1.{member}@E1@p1
+@script:python@
+p1 << rule1.p1;
+@@
+print(repr(tuple([p1[0].file, p1[0].current_element, int(p1[0].line),
+                  int(p1[0].column), int(p1[0].line_end),
+                  int(p1[0].column_end)])))
+""".format(type=type_str, member=pattern.name))
+        pass
     else:
-        assert False
+        assert False, "TODO"
 
 
-def diff_to_grep_lines(difffile):
-    # TODO: handle paths with spaces
-    fromfile_re = re.compile(r'--- (\S+)')
-    tofile_re = re.compile(r'\+\+\+ (\S+)')
-    hunkheader_re = re.compile(r'@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@.*')
-    hunk_re = re.compile(r'([ +-])(.*)')
+def spatch_matches(file):
+    for line in file:
+        yield SpatchMatch(*ast.literal_eval(line))
 
-    state = 'none'
-    file = None
-    start = None
-    lineno = None
-    for line in difffile:
-        line = line.decode('utf-8')
-        if line and line[-1] == '\n':
-            line = line[:-1]
-        if state == 'none':
-            assert line.startswith('diff')
-            state = 'fromfile'
-        elif state == 'fromfile':
-            match = fromfile_re.fullmatch(line)
-            file = match.group(1)
-            state = 'tofile'
-        elif state == 'tofile':
-            match = tofile_re.fullmatch(line)
-            assert match is not None
-            state = 'hunk'
-        elif state == 'hunk':
-            if line.startswith('diff'):
-                state = 'fromfile'
-                file = None
-                start = None
-                lineno = None
-                continue
 
-            match = hunkheader_re.fullmatch(line)
-            if match:
-                # We don't have to worry about the from-file vs. to-file line
-                # numbers because all matches are always "-" lines.
-                start = int(match.group(1))
-                lineno = start
-                continue
+def spatch_matches_to_grep_lines(matches, args):
+    def context(file, lines):
+        for line in lines:
+            contents = linecache.getline(file, line)
+            if contents:
+                if contents[-1] == '\n':
+                    contents = contents[:-1]
+                yield GrepLine(file=file, line=line, contents=contents,
+                               is_context=True, match_start=None,
+                               match_end=None)
 
-            match = hunk_re.fullmatch(line)
-            if match.group(1) == ' ':
-                yield GrepLine(file=file, number=lineno,
-                               contents=match.group(2), is_context=True)
-            elif match.group(1) == '-':
-                yield GrepLine(file=file, number=lineno,
-                               contents=match.group(2), is_context=False)
-            else:
-                assert False
-            lineno += 1
+    last_file = None
+    last_line = None
+    for match in matches:
+        if match.file != last_file:
+            if last_file is not None:
+                # Context after from the last match in the previous file.
+                yield from context(
+                    last_file, range(last_line + 1, last_line + args.after + 1))
+            last_line = 0
         else:
-            assert False
+            # Context after the previous match
+            yield from context(
+                match.file, range(last_line + 1, min(last_line + args.after + 1,
+                                                     match.line - args.before)))
+
+        # Context before this match
+        yield from context(
+            match.file, range(max(last_line + 1, match.line - args.before), match.line))
+
+        # The match itself
+        for line in range(match.line, match.line_end + 1):
+            contents = linecache.getline(match.file, line)
+            if contents and contents[-1] == '\n':
+                contents = contents[:-1]
+            if line == match.line:
+                match_start = match.column
+            else:
+                match_start = 0
+            if line == match.line_end:
+                match_end = match.column_end
+            else:
+                match_end = None
+            yield GrepLine(file=match.file, line=line, contents=contents,
+                           is_context=False, match_start=match_start,
+                           match_end=match_end)
+
+        last_file = match.file
+        last_line = match.line_end
+
+    if last_file is not None:
+        # Context after from the last match in the last file
+        yield from context(
+            last_file, range(last_line + 1, last_line + args.after + 1))
 
 
 def output_grep_lines(grep_lines, args):
@@ -239,6 +259,15 @@ def output_grep_lines(grep_lines, args):
         def color(s, c):
             return s
 
+    def color_line_number(s):
+        return color(s, args.color_line_number)
+
+    def color_match(s):
+        return color(s, args.color_match)
+
+    def color_path(s):
+        return color(s, args.color_path)
+
     if args.group:
         first_file = True
         first_hunk = None
@@ -247,10 +276,16 @@ def output_grep_lines(grep_lines, args):
         prev_lineno = None
 
     for line in grep_lines:
+        if line.is_context:
+            contents = line.contents
+        else:
+            contents = (line.contents[:line.match_start] +
+                        color_match(line.contents[line.match_start:line.match_end]) +
+                        line.contents[line.match_end:])
         grep_line = {
-            'path': color(line.file, args.color_path),
-            'number': color(line.number, args.color_line_number),
-            'contents': line.contents,
+            'path': color_path(line.file),
+            'line': color_line_number(line.line),
+            'contents': contents,
         }
 
         if args.group:
@@ -261,28 +296,28 @@ def output_grep_lines(grep_lines, args):
                 print(grep_line['path'])
                 first_hunk = True
                 prev_lineno = None
-            if prev_lineno is None or line.number != prev_lineno + 1:
+            if prev_lineno is None or line.line != prev_lineno + 1:
                 if not first_hunk:
                     print('--')
                 first_hunk = False
 
             if args.numbers:
-                line_number = color(line.number, args.color_line_number)
+                line_number = color(line.line, args.color_line_number)
                 if line.is_context:
-                    format = '{number}-{contents}'
+                    format = '{line}-{contents}'
                 else:
-                    format = '{number}:{contents}'
+                    format = '{line}:{contents}'
             else:
                 format = '{contents}'
 
             prev_file = line.file
-            prev_lineno = line.number
+            prev_lineno = line.line
         else:
             if args.numbers:
                 if line.is_context:
-                    format = '{path}-{number}-{contents}'
+                    format = '{path}-{line}-{contents}'
                 else:
-                    format = '{path}:{number}:{contents}'
+                    format = '{path}:{line}:{contents}'
             else:
                 if line.is_context:
                     format = '{path}-{contents}'
@@ -292,6 +327,11 @@ def output_grep_lines(grep_lines, args):
 
 
 def main():
+    class ContextAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string):
+            setattr(namespace, 'after', values)
+            setattr(namespace, 'before', values)
+
     parser = argparse.ArgumentParser(
         description='Search for semantic PATTERN in each PATH or the current working directory'
     )
@@ -300,16 +340,22 @@ def main():
         'path', metavar='PATH', nargs='*',
         help='file or directory to search in')
 
-    parser.add_argument('--color', choices=['never', 'always', 'auto'],
-                        default='auto')
     parser.add_argument('--nogroup', dest='group', action='store_false')
     parser.add_argument('--nonumbers', dest='numbers', action='store_false',
                         help='disable line numbers')
 
-    parser.add_argument('-C', '--context', type=int, default=2)
+    parser.add_argument('-C', '--context', type=int, action=ContextAction,
+                        help='print context lines before and after match')
+    parser.add_argument('-A', '--after', type=int, default=2,
+                        help='print context lines after match')
+    parser.add_argument('-B', '--before', type=int, default=2,
+                        help='print context lines before match')
 
-    parser.add_argument('--color-path', type=str, default='34')
+    parser.add_argument('--color', choices=['never', 'always', 'auto'],
+                        default='auto')
     parser.add_argument('--color-line-number', type=str, default='32')
+    parser.add_argument('--color-match', type=str, default='103')
+    parser.add_argument('--color-path', type=str, default='34')
 
     args = parser.parse_args()
 
@@ -320,17 +366,18 @@ def main():
         spatch.flush()
         spatch_args = [
             'spatch', '--very-quiet', '--sp-file', spatch.name,
-            '-U', str(args.context),
         ]
         if args.path:
             spatch_args.extend(args.path)
         else:
             spatch_args.append('.')
-        spatch_cmd = subprocess.Popen(spatch_args, stdout=subprocess.PIPE)
-        grep_lines = diff_to_grep_lines(spatch_cmd.stdout)
-        output_grep_lines(grep_lines, args)
-        if spatch_cmd.wait() != 0:
-            raise subprocess.CalledProcessError(cmd.returncode, cmd.args)
+        with subprocess.Popen(spatch_args, stdout=subprocess.PIPE) as spatch_proc, \
+                io.TextIOWrapper(spatch_proc.stdout) as f:
+            matches = spatch_matches(f)
+            grep_lines = spatch_matches_to_grep_lines(matches, args)
+            output_grep_lines(grep_lines, args)
+        if spatch_proc.returncode != 0:
+            raise subprocess.CalledProcessError(spatch_proc.returncode, spatch_proc.args)
 
 
 if __name__ == '__main__':
