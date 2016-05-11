@@ -56,7 +56,6 @@ class PatternParser:
         return result
 
     def parse_pattern(self):
-        pos = self._pos
         token = self.parse_token()
         if token.type == TokenType.lparen:
             # type-spec
@@ -67,7 +66,7 @@ class PatternParser:
 
             self.parse_whitespace()
             if self.eof():
-                return type_spec
+                raise ParseError
 
             # member
             token = self.parse_token()
@@ -86,8 +85,7 @@ class PatternParser:
                 raise ParseError
             return Assignment(member=member)
         else:
-            self._pos = pos
-            return self.parse_type_spec()
+            raise ParseError
 
     def parse_identifier(self):
         token = self.parse_token()
@@ -185,9 +183,23 @@ print(repr(tuple([p1[0].file, p1[0].current_element, int(p1[0].line),
                   int(p1[0].column), int(p1[0].line_end),
                   int(p1[0].column_end)])))
 """.format(type=type_str, member=pattern.name))
-        pass
+    elif isinstance(pattern, Assignment):
+        outfile.write("""\
+@rule1@
+position p1;
+expression E1;
+{type} v1;
+@@
+ v1.{member} =@E1@p1 ...
+@script:python@
+p1 << rule1.p1;
+@@
+print(repr(tuple([p1[0].file, p1[0].current_element, int(p1[0].line),
+                  int(p1[0].column), int(p1[0].line_end),
+                  int(p1[0].column_end)])))
+""".format(type=type_str, member=pattern.member.name))
     else:
-        assert False, "TODO"
+        assert False
 
 
 def spatch_matches(file):
@@ -237,7 +249,7 @@ def spatch_matches_to_grep_lines(matches, args):
             if line == match.line_end:
                 match_end = match.column_end
             else:
-                match_end = None
+                match_end = len(contents)
             yield GrepLine(file=match.file, line=line, contents=contents,
                            is_context=False, match_start=match_start,
                            match_end=match_end)
