@@ -31,8 +31,9 @@ whitespace_re = re.compile(r'\s*')
 SpatchMatch = collections.namedtuple('SpatchMatch', [
     'file', 'current_element', 'line', 'column', 'line_end', 'column_end',
 ])
+GrepMatch = collections.namedtuple('GrepMatch', ['start', 'end'])
 GrepLine = collections.namedtuple('GrepLine', [
-    'file', 'line', 'contents', 'is_context', 'match_start', 'match_end',
+    'file', 'line', 'contents', 'is_context', 'matches',
 ])
 
 
@@ -208,40 +209,37 @@ def spatch_matches(file):
 
 
 def spatch_matches_to_grep_lines(matches, args):
-    def context(file, lines):
-        for line in lines:
-            contents = linecache.getline(file, line)
-            if contents:
-                if contents[-1] == '\n':
-                    contents = contents[:-1]
-                yield GrepLine(file=file, line=line, contents=contents,
-                               is_context=True, match_start=None,
-                               match_end=None)
-
-    last_file = None
-    last_line = None
-    for match in matches:
-        if match.file != last_file:
-            if last_file is not None:
-                # Context after from the last match in the previous file.
-                yield from context(
-                    last_file, range(last_line + 1, last_line + args.after + 1))
-            last_line = 0
-        else:
-            # Context after the previous match
-            yield from context(
-                match.file, range(last_line + 1, min(last_line + args.after + 1,
-                                                     match.line - args.before)))
-
-        # Context before this match
-        yield from context(
-            match.file, range(max(last_line + 1, match.line - args.before), match.line))
-
-        # The match itself
-        for line in range(match.line, match.line_end + 1):
-            contents = linecache.getline(match.file, line)
-            if contents and contents[-1] == '\n':
+    def file_grep_lines(file, state):
+        with open(file, 'r') as f:
+            file_lines = f.readlines()
+        for line in sorted(state):
+            try:
+                contents = file_lines[line - 1]
+            except IndexError:
+                continue
+            if contents[-1] == '\n':
                 contents = contents[:-1]
+            matches = state[line]
+            if matches:
+                matches.sort()
+                yield GrepLine(file=file, line=line, contents=contents,
+                               is_context=False, matches=matches)
+            else:
+                yield GrepLine(file=file, line=line, contents=contents,
+                               is_context=True, matches=None)
+
+    current_file = None
+    file_state = None
+    for match in matches:
+        if match.file != current_file:
+            if file_state:
+                yield from file_grep_lines(current_file, file_state)
+            current_file = match.file
+            file_state = {}
+        for line in range(match.line - args.before, match.line + args.after + 1):
+            file_state.setdefault(line, [])
+
+        for line in range(match.line, match.line_end + 1):
             if line == match.line:
                 match_start = match.column
             else:
@@ -250,17 +248,10 @@ def spatch_matches_to_grep_lines(matches, args):
                 match_end = match.column_end
             else:
                 match_end = len(contents)
-            yield GrepLine(file=match.file, line=line, contents=contents,
-                           is_context=False, match_start=match_start,
-                           match_end=match_end)
+            file_state[line].append(GrepMatch(match_start, match_end))
 
-        last_file = match.file
-        last_line = match.line_end
-
-    if last_file is not None:
-        # Context after from the last match in the last file
-        yield from context(
-            last_file, range(last_line + 1, last_line + args.after + 1))
+    if file_state:
+        yield from file_grep_lines(current_file, file_state)
 
 
 def output_grep_lines(grep_lines, args):
@@ -291,9 +282,15 @@ def output_grep_lines(grep_lines, args):
         if line.is_context:
             contents = line.contents
         else:
-            contents = (line.contents[:line.match_start] +
-                        color_match(line.contents[line.match_start:line.match_end]) +
-                        line.contents[line.match_end:])
+            contents = []
+            prev_end = 0
+            for match in line.matches:
+                contents.append(line.contents[prev_end:match.start])
+                contents.append(color_match(line.contents[match.start:match.end]))
+                prev_end = match.end
+            contents.append(line.contents[prev_end:])
+            contents = ''.join(contents)
+
         grep_line = {
             'path': color_path(line.file),
             'line': color_line_number(line.line),
