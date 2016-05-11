@@ -67,7 +67,7 @@ class PatternParser:
 
             self.parse_whitespace()
             if self.eof():
-                raise ParseError
+                return type_spec
 
             # member
             token = self.parse_token()
@@ -169,14 +169,36 @@ def convert_pattern_to_spatch(pattern, outfile):
     elif type_spec.type == SpecType.typedef:
         type_str = type_spec.name
 
-    if isinstance(pattern, Member):
+    if isinstance(pattern, TypeSpec):
+        outfile.write("""\
+@rule1@
+position p1;
+expression E1;
+{type} v1;
+{type} *v2;
+@@
+(
+ &@E1@p1 v1
+|
+ v1@E1@p1
+|
+ v2@E1@p1
+)
+@script:python@
+p1 << rule1.p1;
+@@
+print(repr(tuple([p1[0].file, p1[0].current_element, int(p1[0].line),
+                  int(p1[0].column), int(p1[0].line_end),
+                  int(p1[0].column_end)])))
+""".format(type=type_str, member=pattern.name))
+    elif isinstance(pattern, Member):
         outfile.write("""\
 @rule1@
 position p1;
 expression E1;
 {type} v1;
 @@
-v1.{member}@E1@p1
+ v1.{member}@E1@p1
 @script:python@
 p1 << rule1.p1;
 @@
