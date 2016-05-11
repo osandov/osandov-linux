@@ -219,9 +219,14 @@ def spatch_matches_to_grep_lines(matches, args):
                 continue
             if contents[-1] == '\n':
                 contents = contents[:-1]
-            matches = state[line]
-            if matches:
-                matches.sort()
+            if state[line]:
+                matches = [state[line][0]]
+                for match in state[line][1:]:
+                    if matches[-1].start <= match.start <= matches[-1].end:
+                        matches[-1] = GrepMatch(min(match.start, matches[-1].start),
+                                                max(match.end, matches[-1].end))
+                    else:
+                        matches.append(match)
                 yield GrepLine(file=file, line=line, contents=contents,
                                is_context=False, matches=matches)
             else:
