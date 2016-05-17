@@ -98,11 +98,11 @@ def cmd_create(args):
     write_file(args, '{}/vm.py'.format(args.name), """\
 add_option(qemu_options, '-cpu', 'kvm64')
 add_option(qemu_options, '-enable-kvm')
-add_option(qemu_options, '-smp', {cpu}),
-add_option(qemu_options, '-m', {memory}),
+add_option(qemu_options, '-smp', {cpu!r}),
+add_option(qemu_options, '-m', {memory!r}),
 add_option(qemu_options, '-watchdog', 'i6300esb'),
 add_option(qemu_options, '-drive', 'file={name}/{name}.qcow2,index=0,media=disk,if=virtio')
-""".format(name=args.name, cpu=args.cpu, memory=repr(args.memory)))
+""".format(name=args.name, cpu=args.cpu, memory=args.memory))
 
 
 def cmd_run(args):
