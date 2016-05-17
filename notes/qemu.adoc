@@ -16,6 +16,14 @@ Enable virtualization support in BIOS.
 vm.py $VM -- -boot d -cdrom $ISO -no-reboot
 ----
 
+== Graphics
+
+By default, `vm.py` disables graphics with `-nodefaults` and `-nographic`. However, this can be reenabled with the `-vga` and `-display` flags. QEMU's default card is `cirrus`, but here's how to use the virtio VGA card:
+
+----
+-vga virtio -display sdl
+----
+
 == GRUB and TTY on Serial Console
 
 Edit `/etc/default/grub`:

@@ -96,6 +96,10 @@ def cmd_create(args):
         args.size = my_input('Size of root disk: ')
     call(args, ['qemu-img', 'create', '-f', 'qcow2', '{0}/{0}.qcow2'.format(args.name), args.size])
     write_file(args, '{}/vm.py'.format(args.name), """\
+add_option(qemu_options, '-nodefaults')
+add_option(qemu_options, '-nographic')
+add_option(qemu_options, '-serial', 'mon:stdio')
+
 add_option(qemu_options, '-cpu', 'kvm64')
 add_option(qemu_options, '-enable-kvm')
 add_option(qemu_options, '-smp', {cpu!r}),
