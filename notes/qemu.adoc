@@ -13,8 +13,10 @@ Enable virtualization support in BIOS.
 == Installing on QEMU from an ISO
 
 ----
-vm.py $VM -- -boot d -cdrom $ISO -no-reboot
+vm.py run $VM -- -boot d -cdrom $ISO -no-reboot
 ----
+
+You might need to run with graphics enabled as per below. Alternatively, if the installation CD allows you to pass command line arguments to the kernel, you can try `console=ttyS0,115200`.
 
 == Graphics
 
