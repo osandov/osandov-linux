@@ -392,28 +392,35 @@ def main():
     parser.add_argument('--color-line-number', type=str, default='32')
     parser.add_argument('--color-match', type=str, default='103')
     parser.add_argument('--color-path', type=str, default='34')
+    
+    parser.add_argument('--output-spatch', action='store_true',
+                        help='output the internal semantic patch instead of searching')
 
     args = parser.parse_args()
 
     pattern = PatternParser(args.pattern).parse()
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.cocci') as spatch:
-        convert_pattern_to_spatch(pattern, spatch)
-        spatch.flush()
-        spatch_args = [
-            'spatch', '--very-quiet', '--sp-file', spatch.name,
-        ]
-        if args.path:
-            spatch_args.extend(args.path)
-        else:
-            spatch_args.append('.')
-        with subprocess.Popen(spatch_args, stdout=subprocess.PIPE) as spatch_proc, \
-                io.TextIOWrapper(spatch_proc.stdout) as f:
-            matches = spatch_matches(f)
-            grep_lines = spatch_matches_to_grep_lines(matches, args)
-            output_grep_lines(grep_lines, args)
-        if spatch_proc.returncode != 0:
-            raise subprocess.CalledProcessError(spatch_proc.returncode, spatch_proc.args)
+    if args.output_cocci:
+        convert_pattern_to_spatch(pattern, sys.stdout)
+        sys.stdout.flush()
+    else:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cocci') as spatch:
+            convert_pattern_to_spatch(pattern, spatch)
+            spatch.flush()
+            spatch_args = [
+                'spatch', '--very-quiet', '--sp-file', spatch.name,
+            ]
+            if args.path:
+                spatch_args.extend(args.path)
+            else:
+                spatch_args.append('.')
+            with subprocess.Popen(spatch_args, stdout=subprocess.PIPE) as spatch_proc, \
+                    io.TextIOWrapper(spatch_proc.stdout) as f:
+                matches = spatch_matches(f)
+                grep_lines = spatch_matches_to_grep_lines(matches, args)
+                output_grep_lines(grep_lines, args)
+            if spatch_proc.returncode != 0:
+                raise subprocess.CalledProcessError(spatch_proc.returncode, spatch_proc.args)
 
 
 if __name__ == '__main__':
