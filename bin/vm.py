@@ -15,7 +15,7 @@ def main():
         description='Manage QEMU virtual machines')
     parser.add_argument(
         '--dry-run', action='store_true',
-        help='Print the command lines that would be run instead of running them')
+        help='print the command lines that would be run instead of running them')
 
     subparsers = parser.add_subparsers(
         title='command', description='command to run', dest='command')
@@ -106,6 +106,11 @@ add_option(qemu_options, '-smp', {cpu!r}),
 add_option(qemu_options, '-m', {memory!r}),
 add_option(qemu_options, '-watchdog', 'i6300esb'),
 add_option(qemu_options, '-drive', 'file={name}/{name}.qcow2,index=0,media=disk,if=virtio,cache=none')
+add_option(qemu_options, '-netdev', 'user,id=vlan0')
+add_option(qemu_options, '-device', 'virtio-net,netdev=vlan0')
+
+append_to_cmdline(qemu_options, 'root=/dev/vda1')
+append_to_cmdline(qemu_options, 'console=ttyS0,115200')
 """.format(name=args.name, cpu=args.cpu, memory=args.memory))
 
 
