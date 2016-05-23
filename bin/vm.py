@@ -43,6 +43,9 @@ def main():
     parser_run.add_argument(
         '-k', '--kernel', help='kernel in ~/linux/builds to run')
     parser_run.add_argument(
+        '-i', '--initrd', metavar='FILE',
+        help='file to use as initial ramdisk (only when passing -k)')
+    parser_run.add_argument(
         '-a', '--append', action='append', default=[],
         help='append a kernel command line argument (only when passing -k)')
     parser_run.add_argument(
@@ -135,6 +138,9 @@ def cmd_run(args):
             'readonly', 'mount_tag=modules'
         ]
         add_option(qemu_options, '-virtfs', ','.join(virtfs_opts))
+
+    if args.initrd:
+        add_option(qemu_options, '-initrd', args.initrd)
 
     explicit_append = False
 
