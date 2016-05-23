@@ -400,7 +400,7 @@ def main():
 
     pattern = PatternParser(args.pattern).parse()
 
-    if args.output_cocci:
+    if args.output_spatch:
         convert_pattern_to_spatch(pattern, sys.stdout)
         sys.stdout.flush()
     else:
