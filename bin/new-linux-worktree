@@ -1,0 +1,51 @@
+#!/bin/sh
+
+set -e
+
+linux_git="$HOME/linux/linux.git"
+builds="$HOME/linux/builds"
+
+usage () {
+	USAGE_STRING="usage: new-linux-worktree <name> <start-point>
+   or: new-linux-worktree -h
+
+Miscellaneous:
+  -h    display this help message and exit"
+
+	case "$1" in
+		out)
+			echo "$USAGE_STRING"
+			exit 0
+			;;
+		err)
+			echo "$USAGE_STRING" >&2
+			exit 1
+			;;
+	esac
+}
+
+while getopts "hz" OPT; do
+	case "$OPT" in
+		z)
+			;;
+		h)
+			usage "out"
+			;;
+		*)
+			usage "err"
+			;;
+	esac
+done
+shift $((OPTIND - 1))
+
+if [ $# -ne 1 -a $# -ne 2 ]; then
+	usage err
+fi
+
+if [ $# -ge 2 ]; then
+	git -C "${linux_git}" branch "$1" "$2"
+else
+	git -C "${linux_git}" branch "$1"
+fi
+
+git -C "${linux_git}" worktree add "${builds}/$1" "$1"
