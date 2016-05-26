@@ -4,6 +4,7 @@ import argparse
 import ctypes
 import os
 import os.path
+import platform
 
 
 libc = ctypes.CDLL('libc.so.6', use_errno=True)
@@ -93,7 +94,10 @@ def umount(target, flags=0):
 
 
 def pivot_root(new_root, put_old):
-    SYS_pivot_root = 155  # XXX: arch-dependent
+    if platform.machine() == 'x86_64':
+        SYS_pivot_root = 155
+    else:
+        raise NotImplementedError
     ret = libc.syscall(ctypes.c_int(SYS_pivot_root),
                        ctypes.c_char_p(new_root.encode('utf-8')),
                        ctypes.c_char_p(put_old.encode('utf-8')))
