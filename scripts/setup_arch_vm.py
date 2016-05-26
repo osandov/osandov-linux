@@ -175,6 +175,11 @@ def main():
 
     args = parser.parse_args()
 
+    comment(args, '#!/bin/sh')
+    comment(args)
+    comment(args, 'set -e')
+    comment(args)
+
     prepare_storage(args)
     comment(args)
 
