@@ -107,7 +107,21 @@ def configure_time(args):
 def install_bootloader(args):
     comment(args, '# Install bootloader')
     chroot_call(args, ['grub-install', '--target=i386-pc', args.root_dev])
-    # TODO: configure serial console
+    write_file(args, '/mnt/etc/default/grub', """\
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=5
+GRUB_DISTRIBUTOR="Arch"
+
+GRUB_TERMINAL="console serial"
+GRUB_SERIAL_COMMAND="serial --speed=115200"
+
+GRUB_GFXMODE=auto
+GRUB_GFXPAYLOAD_LINUX=keep
+
+GRUB_CMDLINE_LINUX_DEFAULT=""
+GRUB_CMDLINE_LINUX="console=ttyS0,115200"
+GRUB_DISABLE_RECOVERY=true
+""")
     chroot_call(args, ['grub-mkconfig', '-o', '/boot/grub/grub.cfg'])
 
 
