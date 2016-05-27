@@ -153,7 +153,7 @@ static int generate_mount_unit(const char *mountpoint, const char *format, ...)
 	if (ret == -1)
 		goto out;
 
-	ret = symlink_unit("local-fs.target.requires", unit_name);
+	ret = symlink_unit("local-fs.target.wants", unit_name);
 	if (ret == -1)
 		goto out;
 
