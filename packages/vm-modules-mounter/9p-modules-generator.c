@@ -237,7 +237,8 @@ static int generate_units(void)
 				  "[Mount]\n"
 				  "What=tmpfs\n"
 				  "Where=%s\n"
-				  "Type=tmpfs\n",
+				  "Type=tmpfs\n"
+				  "Options=mode=755,strictatime\n",
 				  tmpfs_mountpoint);
 	if (ret == -1)
 		goto out;
