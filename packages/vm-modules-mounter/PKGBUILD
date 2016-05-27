@@ -1,7 +1,7 @@
 # Maintainer: Omar Sandoval <osandov@osandov.com>
 
 pkgname=vm-modules-mounter
-pkgver=r7
+pkgver=r8
 pkgrel=1
 pkgdesc="systemd generator for mounting kernel modules over 9p in a VM"
 arch=('x86_64' 'i686')
@@ -10,7 +10,7 @@ license=('GPL3')
 depends=('systemd')
 makedepends=('git')
 source=(9p-modules-generator.c config.mk Makefile)
-sha256sums=('fa91ac93355b6645a10714831d2447fadd4c398567fa9ec17026c116863fb931'
+sha256sums=('685033e2e1ff74ce6a2b1618aef20a820f11e2ad8e8d846e1867a4bee839adb2'
             '298cc2b673e883453a290d1a98f11991c5608852778c65dcb78fec02a190b4bd'
             'eeb1a209f3764f5b1c6ac48202f418f57f9571e3f6a6607d7fe403deb88482d8')
 

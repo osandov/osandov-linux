@@ -283,7 +283,7 @@ static int generate_cleanup_unit(void)
 			       "[Unit]\n"
 			       "Description=Cleans up empty module directories\n"
 			       "DefaultDependencies=no\n"
-			       "After=systemd-modules-load.service\n"
+			       "After=local-fs.target\n"
 			       "Before=sysinit.target\n"
 			       "\n"
 			       "[Service]\n"
