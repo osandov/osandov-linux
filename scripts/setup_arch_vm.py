@@ -12,9 +12,13 @@ PACKAGES=[
     'base',
     'base-devel',
     'grub',
+    'openssh',
 
     # Development
+    'gdb',
     'git',
+    'ltrace',
+    'perf',
     'python',
     'python2',
     'strace',
@@ -129,6 +133,7 @@ def configure_networking(args):
     comment(args, '# Configure networking')
     write_file(args, '/mnt/etc/hostname', args.hostname + '\n')
     chroot_call(args, ['systemctl', 'enable', 'dhcpcd.service'])
+    chroot_call(args, ['systemctl', 'enable', 'sshd.service'])
 
 
 def configure_users(args):
