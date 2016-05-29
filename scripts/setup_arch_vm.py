@@ -8,25 +8,25 @@ import subprocess
 
 
 PACKAGES=[
-	# Base system
-	'base',
-	'base-devel',
-	'grub',
+    # Base system
+    'base',
+    'base-devel',
+    'grub',
 
-	# Development
-	'git',
-	'python',
-	'python2',
-	'strace',
-	'vim',
+    # Development
+    'git',
+    'python',
+    'python2',
+    'strace',
+    'vim',
 
-	# xfstests
-	'attr',
-	'bc',
-	'fio',
-	'libaio',
-	'psmisc',
-        'xfsprogs',
+    # xfstests
+    'attr',
+    'bc',
+    'fio',
+    'libaio',
+    'psmisc',
+    'xfsprogs',
 ]
 
 
