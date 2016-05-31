@@ -139,7 +139,7 @@ def configure_networking(args):
 def configure_users(args):
     comment(args, '# Configure users')
     comment(args, '# For xfstests')
-    chroot_call(args, ['useradd', 'fsgqa'])
+    chroot_call(args, ['useradd', '-m', 'fsgqa'])
     comment(args, '# Finally, set the root password')
     chroot_call(args, ['passwd'])
 
