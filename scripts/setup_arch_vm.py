@@ -12,9 +12,11 @@ PACKAGES=[
     'base',
     'base-devel',
     'grub',
+    'rsync',
     'openssh',
 
     # Development
+    'asciidoc',
     'gdb',
     'git',
     'ltrace',
