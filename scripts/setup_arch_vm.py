@@ -17,6 +17,7 @@ PACKAGES=[
 
     # Development
     'asciidoc',
+    'cscope',
     'gdb',
     'git',
     'ltrace',
