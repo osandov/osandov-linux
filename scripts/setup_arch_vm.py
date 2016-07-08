@@ -139,6 +139,13 @@ def configure_networking(args):
     chroot_call(args, ['systemctl', 'enable', 'sshd.service'])
 
 
+def configure_misc(args):
+    comment(args, '# Configure miscellaneous settings')
+    write_file(args, '/mnt/etc/sysctl.d/50-sysrq.conf', """\
+kernel.sysrq = 1
+""")
+
+
 def configure_users(args):
     comment(args, '# Configure users')
     comment(args, '# For xfstests')
@@ -204,6 +211,9 @@ def main():
     comment(args)
 
     configure_networking(args)
+    comment(args)
+
+    configure_misc(args)
     comment(args)
 
     configure_users(args)
