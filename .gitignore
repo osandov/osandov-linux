@@ -1,3 +1,5 @@
+__pycache__
+*.pyc
 /packages/vm-modules-mounter/pkg
 /packages/vm-modules-mounter/src
 /packages/vm-modules-mounter/*.pkg.tar.xz
