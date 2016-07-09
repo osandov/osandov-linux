@@ -70,7 +70,8 @@ def cmd_create(sh, args):
     sh.mkdir(args.name)
     if args.size is None:
         args.size = my_input('Size of root disk: ')
-    sh.call(['qemu-img', 'create', '-f', 'qcow2', '{0}/{0}.qcow2'.format(args.name), args.size])
+    sh.call(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
+             '{0}/{0}.qcow2'.format(args.name), args.size])
     sh.write_file('{}/vm.py'.format(args.name), """\
 add_option(qemu_options, '-nodefaults')
 add_option(qemu_options, '-nographic')
