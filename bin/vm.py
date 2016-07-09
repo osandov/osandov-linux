@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
 import argparse
-from collections import OrderedDict
-import os
 import os.path
-import pprint
-import shlex
 import subprocess
 import sys
+
+import shlib
 
 
 def main():
@@ -54,28 +52,8 @@ def main():
     parser_run.set_defaults(func=cmd_run)
 
     args = parser.parse_args()
-    args.func(args)
-
-
-def chdir(args, path, always_chdir=True):
-    if args.dry_run:
-        print('cd {}'.format(shlex.quote(path)))
-    if (not args.dry_run) or always_chdir:
-        os.chdir(path)
-
-
-def mkdir(args, path):
-    if args.dry_run:
-        print('mkdir {}'.format(shlex.quote(path)))
-    else:
-        os.mkdir(path)
-
-
-def call(args, exec_args):
-    if args.dry_run:
-        print(' '.join(shlex.quote(arg) for arg in exec_args))
-    else:
-        subprocess.check_call(exec_args)
+    sh = shlib.Shlib(dry_run=args.dry_run)
+    args.func(sh, args)
 
 
 def my_input(prompt=None):
@@ -85,20 +63,15 @@ def my_input(prompt=None):
     return input()
 
 
-def write_file(args, path, contents):
-    if args.dry_run:
-        print('cat << "EOF" > {}\n{}EOF'.format(shlex.quote(path), contents))
-    else:
-        with open(path, 'w') as f:
-            f.write(contents)
+def cmd_create(sh, args):
+    sh.blank()
+    sh.chdir(os.path.expanduser('~/linux/vm'))
 
-def cmd_create(args):
-    chdir(args, os.path.expanduser('~/linux/vm'))
-    mkdir(args, args.name)
+    sh.mkdir(args.name)
     if args.size is None:
         args.size = my_input('Size of root disk: ')
-    call(args, ['qemu-img', 'create', '-f', 'qcow2', '{0}/{0}.qcow2'.format(args.name), args.size])
-    write_file(args, '{}/vm.py'.format(args.name), """\
+    sh.call(['qemu-img', 'create', '-f', 'qcow2', '{0}/{0}.qcow2'.format(args.name), args.size])
+    sh.write_file('{}/vm.py'.format(args.name), """\
 add_option(qemu_options, '-nodefaults')
 add_option(qemu_options, '-nographic')
 add_option(qemu_options, '-serial', 'mon:stdio')
@@ -117,8 +90,9 @@ append_to_cmdline(qemu_options, 'console=ttyS0,115200')
 """.format(name=args.name, cpu=args.cpu, memory=args.memory))
 
 
-def cmd_run(args):
-    chdir(args, os.path.expanduser('~/linux/vm'))
+def cmd_run(sh, args):
+    sh.blank()
+    sh.chdir(os.path.expanduser('~/linux/vm'))
 
     qemu_options = []
     vm_script_path = '{}/vm.py'.format(args.name)
@@ -163,7 +137,7 @@ def cmd_run(args):
     for option in qemu_options:
         exec_args.extend(option)
 
-    call(args, exec_args)
+    sh.call(exec_args)
 
 
 def add_option(qemu_options, flag, *args):

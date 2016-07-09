@@ -3,6 +3,7 @@ Library for writing Python utilities that can also output their shell script
 equivalents in dry-run mode.
 """
 
+import os
 import shlex
 import subprocess
 
@@ -28,6 +29,12 @@ class Shlib:
         """
         if self._dry_run:
             print()
+
+    def chdir(self, path):
+        if self._dry_run:
+            print('cd {}'.format(shlex.quote(path)))
+        # Note: this actually does the chdir even in dry-run mode.
+        os.chdir(path)
 
     @staticmethod
     def _to_heredoc(cmd, input, output_path=None):
@@ -61,6 +68,12 @@ class Shlib:
         else:
             subprocess.run(cmd, shell=shell, input=input, check=True,
                            universal_newlines=True)
+
+    def mkdir(self, path):
+        if self._dry_run:
+            print('mkdir {}'.format(shlex.quote(path)))
+        else:
+            os.mkdir(path)
 
     def write_file(self, path, contents):
         if self._dry_run:

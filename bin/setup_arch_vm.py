@@ -3,8 +3,6 @@
 import argparse
 import os.path
 import re
-import shlex
-import subprocess
 
 import shlib
 
