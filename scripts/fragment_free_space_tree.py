@@ -55,7 +55,7 @@ def benchmark(args):
     try:
         # Get rid of the 8 MB data block group that mkfs.btrfs makes, we want a
         # full-sized 1 GB block group.
-        subprocess.check_call(['btrfs', 'balance', 'start', args.mnt])
+        subprocess.check_call(['btrfs', 'balance', 'start', '-d', args.mnt])
         if args.check:
             cycle_mount_btrfsck(args.dev, args.mnt)
 
