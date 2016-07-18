@@ -20,7 +20,7 @@ def cycle_mount_btrfsck(dev, mnt):
 def create_files(test_dir, sectorsize, numfiles):
     os.chdir(test_dir)
     for i in range(numfiles):
-        if i % 512 == 0:
+        if i % 2048 == 0:
             print('Created {}/{} files...'.format(i, numfiles), end='\r')
         fd = os.open(str(i), os.O_WRONLY | os.O_CREAT)
         try:
@@ -34,7 +34,7 @@ def create_files(test_dir, sectorsize, numfiles):
 def unlink_every_other_file(test_dir, numfiles):
     os.chdir(test_dir)
     for i in range(0, numfiles, 2):
-        if i % 512 == 0:
+        if i % 4096 == 0:
             print('Unlinked {}/{} files...'.format(i // 2, numfiles // 2), end='\r')
         os.unlink(str(i))
     print('Unlinked {0}/{0} files...'.format(numfiles // 2))
@@ -76,6 +76,7 @@ def benchmark(args):
 
         # Now unlink everything else, which will cause us to convert back to
         # extents.
+        print('Removing everything else...')
         shutil.rmtree(test_dir)
     finally:
         subprocess.call(['umount', '--', args.mnt])
