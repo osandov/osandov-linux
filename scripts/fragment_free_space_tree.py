@@ -42,7 +42,7 @@ def unlink_every_other_file(test_dir, numfiles):
 
 
 def benchmark(args):
-    numfiles = CHUNK_SIZE // args.sectorsize
+    numfiles = (args.chunks * CHUNK_SIZE) // args.sectorsize
 
     print('Creating filesystem...')
     try:
@@ -74,6 +74,9 @@ def benchmark(args):
         if args.check:
             cycle_mount_btrfsck(args.dev, args.mnt)
 
+        if args.keep:
+            return
+
         # Now unlink everything else, which will cause us to convert back to
         # extents.
         print('Removing everything else...')
@@ -86,6 +89,11 @@ def benchmark(args):
 
 
 def main():
+    def positive_int(value):
+        n = int(value)
+        if n <= 0:
+            raise ValueError
+        return n
     parser = argparse.ArgumentParser(
         description='fragment the Btrfs free space tree for testing',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -93,8 +101,14 @@ def main():
         'dev', metavar='DEV', type=str, default=argparse.SUPPRESS,
         help='device to test on (WARNING: will be reformatted)')
     parser.add_argument(
-        '-s', '--sectorsize', type=int, default=os.sysconf('SC_PAGESIZE'),
+        '-s', '--sectorsize', type=positive_int, default=os.sysconf('SC_PAGESIZE'),
         help='sectorsize to pass to mkfs.btrfs')
+    parser.add_argument(
+        '-n', '--chunks', type=positive_int, default=1,
+        help='how many chunks to fill and fragment')
+    parser.add_argument(
+        '-k', '--keep', action='store_true',
+        help="keep the test directory so the filesystem remains fragmented")
     parser.add_argument(
         '-m', '--mnt', type=str, default='/tmp/fragment_free_space_tree',
         help='test file system mountpoint path')
