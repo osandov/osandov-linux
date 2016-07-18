@@ -79,6 +79,7 @@ def benchmark(args):
         print('Removing everything else...')
         shutil.rmtree(test_dir)
     finally:
+        os.chdir('/')
         subprocess.call(['umount', '--', args.mnt])
     if args.check:
         subprocess.check_call(['btrfs', 'check', '--', args.dev])
