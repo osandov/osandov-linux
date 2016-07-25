@@ -184,7 +184,7 @@ static int generate_modules_unit(const char *kernelrelease,
 			       "ExecStart=/bin/ln -s build/modules.order /lib/modules/%3$s/modules.order\n"
 			       "ExecStart=/bin/ln -s build/modules.builtin /lib/modules/%3$s/modules.builtin\n"
 			       "ExecStart=/bin/ln -s build /lib/modules/%3$s/kernel\n"
-			       "ExecStart=/bin/depmod %3$s\n",
+			       "ExecStart=/sbin/depmod %3$s\n",
 			       tmpfs_mountpoint, _9p_mountpoint, kernelrelease);
 	if (ret == -1)
 		goto out;
@@ -289,7 +289,7 @@ static int generate_cleanup_unit(void)
 			       "[Service]\n"
 			       "Type=oneshot\n"
 			       "RemainAfterExit=yes\n"
-			       "ExecStart=/bin/find /lib/modules -mindepth 1 -maxdepth 1 -type d -empty -delete\n");
+			       "ExecStart=/usr/bin/find /lib/modules -mindepth 1 -maxdepth 1 -type d -empty -delete\n");
 	if (ret == -1)
 		goto out;
 
