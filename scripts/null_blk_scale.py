@@ -100,7 +100,7 @@ def main():
     with open('info.json', 'w') as f:
         json.dump(info, f, sort_keys=True, indent=4)
 
-    print('JOBS\tTOTAL IOPS\tMIN IOPS\tMAX IOPS\tMEAN IOPS\tIOPS\tSTDEV\tMERGES', file=sys.stderr)
+    print('JOBS\tTOTAL IOPS\tMIN IOPS\tMAX IOPS\tMEAN IOPS\tIOPS STDEV\tMERGES', file=sys.stderr)
     sys.stdout.flush()
     for num_jobs in range(args.min_jobs, args.max_jobs + 1):
         iops = run_fio(args, num_jobs)
