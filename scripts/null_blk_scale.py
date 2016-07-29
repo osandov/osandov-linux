@@ -17,7 +17,8 @@ import sys
 
 def run_fio(args, num_jobs):
     subprocess.check_call(['modprobe', '-r', 'null_blk'])
-    subprocess.check_call(['modprobe', 'null_blk', 'submit_queues={}'.format(args.hw_queues)])
+    subprocess.check_call(['modprobe', 'null_blk', 'queue_mode=2',
+                           'submit_queues={}'.format(args.hw_queues)])
     name = '{}{}'.format(args.ioengine, num_jobs)
     output = name + '.json'
     fio_cmd = [
