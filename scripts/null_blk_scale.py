@@ -18,6 +18,7 @@ import sys
 def run_fio(args, num_jobs):
     subprocess.check_call(['modprobe', '-r', 'null_blk'])
     subprocess.check_call(['modprobe', 'null_blk', 'queue_mode=2',
+                           'hw_queue_depth={}'.format(args.queue_depth),
                            'submit_queues={}'.format(args.hw_queues)])
     name = '{}{}'.format(args.ioengine, num_jobs)
     output = name + '.json'
