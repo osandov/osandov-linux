@@ -69,6 +69,13 @@ class Shlib:
             subprocess.run(cmd, shell=shell, input=input, check=True,
                            universal_newlines=True)
 
+    def exec(self, cmd):
+        if self._dry_run:
+            cmd = ' '.join(shlex.quote(arg) for arg in cmd)
+            print('exec {}'.format(cmd))
+        else:
+            os.execvp(cmd[0], cmd)
+
     def mkdir(self, path):
         if self._dry_run:
             print('mkdir {}'.format(shlex.quote(path)))

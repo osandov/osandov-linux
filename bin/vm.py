@@ -138,7 +138,7 @@ def cmd_run(sh, args):
     for option in qemu_options:
         exec_args.extend(option)
 
-    sh.call(exec_args)
+    sh.exec(exec_args)
 
 
 def add_option(qemu_options, flag, *args):
