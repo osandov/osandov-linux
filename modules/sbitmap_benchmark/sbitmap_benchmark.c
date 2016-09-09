@@ -86,7 +86,7 @@ static int __init sbitmap_perf_init(void)
 	}
 
 	pr_info("Starting benchmark (depth=%u, bits_per_word=%u, round_robin=%d)\n",
-		sbq->map.depth, 1 << sbq->map.shift, sbq->round_robin);
+		sbq->sb.depth, 1 << sbq->sb.shift, sbq->round_robin);
 
 	start = ktime_get();
 	for_each_possible_cpu(cpu)
