@@ -1,5 +1,5 @@
 ifneq ($(KERNELRELEASE),)
-	obj-m := scale_bitmap_benchmark.o
+	obj-m := sbitmap_benchmark.o
 else
 	KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 	PWD := $(shell pwd)

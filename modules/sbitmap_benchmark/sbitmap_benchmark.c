@@ -1,6 +1,6 @@
 #include <linux/kthread.h>
 #include <linux/module.h>
-#include <linux/scale_bitmap.h>
+#include <linux/sbitmap.h>
 
 static unsigned int depth = 128;
 module_param(depth, uint, S_IRUGO);
@@ -19,9 +19,9 @@ module_param(home_node, int, S_IRUGO);
 MODULE_PARM_DESC(home_node, "NUMA node to allocate bitmap queue on");
 
 static struct task_struct **kthreads;
-static struct scale_bitmap_queue *sbq;
+static struct sbitmap_queue *sbq;
 
-static int scale_bitmap_perf_thread(void *data)
+static int sbitmap_perf_thread(void *data)
 {
 	ktime_t start, end;
 	s64 delta;
@@ -32,9 +32,9 @@ static int scale_bitmap_perf_thread(void *data)
 
 	start = ktime_get();
 	for (i = 0; i < 1000000; i++) {
-		nr = __scale_bitmap_queue_get(sbq);
+		nr = __sbitmap_queue_get(sbq);
 		if (nr >= 0)
-			scale_bitmap_queue_clear(sbq, nr, cpu);
+			sbitmap_queue_clear(sbq, nr, cpu);
 	}
 	end = ktime_get();
 	delta = ktime_to_ns(ktime_sub(end, start));
@@ -51,7 +51,7 @@ static int scale_bitmap_perf_thread(void *data)
 	return 0;
 }
 
-static int __init scale_bitmap_perf_init(void)
+static int __init sbitmap_perf_init(void)
 {
 	ktime_t start, end;
 	s64 delta;
@@ -63,7 +63,7 @@ static int __init scale_bitmap_perf_init(void)
 	if (!sbq)
 		return -ENOMEM;
 
-	ret = scale_bitmap_queue_init_node(sbq, depth, shift, round_robin,
+	ret = sbitmap_queue_init_node(sbq, depth, shift, round_robin,
 					   GFP_KERNEL, home_node);
 	if (ret)
 		goto free;
@@ -75,7 +75,7 @@ static int __init scale_bitmap_perf_init(void)
 	}
 
 	for_each_online_cpu(cpu) {
-		kthread = kthread_create_on_node(scale_bitmap_perf_thread, NULL,
+		kthread = kthread_create_on_node(sbitmap_perf_thread, NULL,
 						 cpu_to_node(cpu), "sbperf%d", cpu);
 		if (IS_ERR(kthread)) {
 			ret = PTR_ERR(kthread);
@@ -106,14 +106,14 @@ free_kthreads:
 	}
 	kfree(kthreads);
 free_sbq:
-	scale_bitmap_queue_free(sbq);
+	sbitmap_queue_free(sbq);
 free:
 	kfree(sbq);
 	return ret;
 }
 
-module_init(scale_bitmap_perf_init);
+module_init(sbitmap_perf_init);
 
 MODULE_AUTHOR("Omar Sandoval <osandov@fb.com>");
-MODULE_DESCRIPTION("scale_bitmap benchmark");
+MODULE_DESCRIPTION("sbitmap benchmark");
 MODULE_LICENSE("GPL");
