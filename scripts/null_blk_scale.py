@@ -22,6 +22,9 @@ def run_fio(args, num_jobs):
     subprocess.check_call(['modprobe', 'null_blk', 'queue_mode=2',
                            'hw_queue_depth={}'.format(args.queue_depth),
                            'submit_queues={}'.format(args.hw_queues)])
+    if args.disable_iostats:
+        with open('/sys/block/nullb0/queue/iostats', 'w') as f:
+            f.write('0\n')
     name = 'fio{}'.format(num_jobs)
     output = name + '.json'
     fio_cmd = [
@@ -98,6 +101,8 @@ def main():
     null_blk_group.add_argument(
         '-d', '--queue-depth', type=positive_int, default=64,
         help='depth of null-blk hardware queues')
+    null_blk_group.add_argument(
+        '--disable-iostats', action='store_true', help='disable iostats')
 
     fio_group = parser.add_argument_group('fio parameters')
     fio_group.add_argument(
