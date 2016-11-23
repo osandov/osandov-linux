@@ -17,13 +17,9 @@ import subprocess
 import sys
 
 
-def run_fio(args, num_jobs):
-    subprocess.check_call(['modprobe', '-r', 'null_blk'])
-    subprocess.check_call(['modprobe', 'null_blk', 'queue_mode=2',
-                           'hw_queue_depth={}'.format(args.queue_depth),
-                           'submit_queues={}'.format(args.hw_queues)])
+def run_fio(args, num_jobs, blkdev):
     if args.disable_iostats:
-        with open('/sys/block/nullb0/queue/iostats', 'w') as f:
+        with open('/sys/block/{}/queue/iostats'.format(blkdev), 'w') as f:
             f.write('0\n')
     name = 'fio{}'.format(num_jobs)
     output = name + '.json'
@@ -32,7 +28,7 @@ def run_fio(args, num_jobs):
         '--output={}'.format(output),
         '--output-format=json',
         '--name={}'.format(name),
-        '--filename=/dev/nullb0',
+        '--filename=/dev/{}'.format(blkdev),
         '--direct=1',
         '--numjobs={}'.format(num_jobs),
         '--cpus_allowed_policy=split',
@@ -47,6 +43,14 @@ def run_fio(args, num_jobs):
     with open(output, 'r') as f:
         fio_output = json.load(f)
     return aggregate_iops(fio_output)
+
+
+def run_null_blk(args, num_jobs):
+    subprocess.check_call(['modprobe', '-r', 'null_blk'])
+    subprocess.check_call(['modprobe', 'null_blk', 'queue_mode=2',
+                           'hw_queue_depth={}'.format(args.queue_depth),
+                           'submit_queues={}'.format(args.hw_queues)])
+    return run_fio(args, num_jobs, 'nullb0')
 
 
 def aggregate_iops(fio_output):
@@ -142,7 +146,7 @@ def main():
 
     print_header()
     for num_jobs in range(args.min_jobs, args.max_jobs + 1):
-        iops = run_fio(args, num_jobs)
+        iops = run_fio(args, num_jobs, 'nvme0n1')
         print_results(iops)
 
 

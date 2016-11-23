@@ -1,0 +1,15 @@
+[global]
+group_reporting
+unified_rw_reporting=1
+direct=1
+norandommap
+
+[aggregate_readers]
+numjobs=5
+size=1G
+rw=randread
+
+[aggregate_writers]
+numjobs=5
+size=1G
+rw=randwrite

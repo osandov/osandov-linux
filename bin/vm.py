@@ -95,6 +95,10 @@ def cmd_run(sh, args):
     sh.blank()
     sh.chdir(os.path.expanduser('~/linux/vm'))
 
+    config = {
+            'arch': 'x86',
+            'qemu_system': 'qemu-system-x86_64',
+    }
     qemu_options = []
     vm_script_path = '{}/vm.py'.format(args.name)
     with open(vm_script_path, 'r') as f:
@@ -104,7 +108,8 @@ def cmd_run(sh, args):
     # Command-line arguments.
     if args.kernel:
         build_path = os.path.expanduser('~/linux/builds/{}'.format(args.kernel))
-        image_name = subprocess.check_output(['make', '-s', 'image_name'], cwd=build_path)
+        make_args = ['make', 'ARCH={}'.format(config['arch']), '-s', 'image_name']
+        image_name = subprocess.check_output(make_args, cwd=build_path)
         image_name = image_name.decode('utf-8').strip()
         kernel_image_path = os.path.join(build_path, image_name)
         replace_option(qemu_options, '-kernel', kernel_image_path)
@@ -134,7 +139,7 @@ def cmd_run(sh, args):
         pop_option(qemu_options, '-append')
 
     # Convert the options to the actual arguments to execute.
-    exec_args = ['qemu-system-x86_64']
+    exec_args = [config['qemu_system']]
     for option in qemu_options:
         exec_args.extend(option)
 

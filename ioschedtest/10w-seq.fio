@@ -1,0 +1,9 @@
+[global]
+group_reporting
+unified_rw_reporting=1
+direct=1
+
+[aggregate_writers]
+numjobs=10
+size=1G
+rw=write

@@ -18,30 +18,89 @@ static int home_node = NUMA_NO_NODE;
 module_param(home_node, int, S_IRUGO);
 MODULE_PARM_DESC(home_node, "NUMA node to allocate bitmap queue on");
 
+enum sbitmap_benchmark_type {
+	BENCHMARK_SYNC_GET_CLEAR = 0,
+	BENCHMARK_FULL_GET_CLEAR = 1,
+};
+static int benchmark = BENCHMARK_SYNC_GET_CLEAR;
+module_param(benchmark, int, S_IRUGO);
+MODULE_PARM_DESC(benchmark, "Benchmark to run (0=sync get/clear, 1=full get/clear)");
+
+static unsigned int iterations = 1000000;
+module_param(iterations, uint, S_IRUGO);
+MODULE_PARM_DESC(iterations, "Number of benchmark iterations");
+
 static struct task_struct **kthreads;
 static struct sbitmap_queue *sbq;
 
-static int sbitmap_perf_thread(void *data)
+/*
+ * Repeatedly get and clear a bit.
+ */
+static void sbitmap_benchmark_sync_get_clear(unsigned int cpu)
 {
-	ktime_t start, end;
-	s64 delta;
-	int i, nr;
-	int cpu;
+	unsigned int i;
+	int nr;
 
-	cpu = get_cpu();
-
-	start = ktime_get();
-	for (i = 0; i < 1000000; i++) {
+	for (i = 0; i < iterations; i++) {
 		nr = __sbitmap_queue_get(sbq);
 		if (nr >= 0)
 			sbitmap_queue_clear(sbq, nr, cpu);
 	}
+}
+
+/*
+ * Repeatedly fill and empty the bitmap with get and clear.
+ */
+static void sbitmap_benchmark_full_get_clear(unsigned int cpu, int *bitnrs)
+{
+	unsigned int i;
+	int n = 0;
+	int nr;
+
+	for (i = 0; i < iterations; i++) {
+		nr = __sbitmap_queue_get(sbq);
+		if (nr >= 0) {
+			bitnrs[n++] = nr;
+		} else {
+			while (n)
+				sbitmap_queue_clear(sbq, bitnrs[--n], cpu);
+		}
+	}
+	while (n)
+		sbitmap_queue_clear(sbq, bitnrs[--n], cpu);
+}
+
+static int sbitmap_benchmark_thread(void *data)
+{
+	ktime_t start, end;
+	int *bitnrs;
+	s64 delta;
+	int cpu;
+
+	bitnrs = kmalloc_array(depth, sizeof(*bitnrs), GFP_KERNEL);
+	if (!bitnrs) {
+		pr_err("Out of memory\n");
+		return -ENOMEM;
+	}
+
+	cpu = get_cpu();
+	start = ktime_get();
+	switch (benchmark) {
+	case BENCHMARK_SYNC_GET_CLEAR:
+		sbitmap_benchmark_sync_get_clear(cpu);
+		break;
+	case BENCHMARK_FULL_GET_CLEAR:
+		sbitmap_benchmark_full_get_clear(cpu, bitnrs);
+		break;
+	}
 	end = ktime_get();
 	delta = ktime_to_ns(ktime_sub(end, start));
+	put_cpu();
+
 	pr_info("CPU %d took %lld.%.9lld s\n", cpu,
 		delta / NSEC_PER_SEC, delta % NSEC_PER_SEC);
 
-	put_cpu();
+	kfree(bitnrs);
 
 	while (!kthread_should_stop()) {
 		__set_current_state(TASK_INTERRUPTIBLE);
@@ -64,7 +123,7 @@ static int __init sbitmap_perf_init(void)
 		return -ENOMEM;
 
 	ret = sbitmap_queue_init_node(sbq, depth, shift, round_robin,
-					   GFP_KERNEL, home_node);
+				      GFP_KERNEL, home_node);
 	if (ret)
 		goto free;
 
@@ -75,7 +134,7 @@ static int __init sbitmap_perf_init(void)
 	}
 
 	for_each_online_cpu(cpu) {
-		kthread = kthread_create_on_node(sbitmap_perf_thread, NULL,
+		kthread = kthread_create_on_node(sbitmap_benchmark_thread, NULL,
 						 cpu_to_node(cpu), "sbperf%d", cpu);
 		if (IS_ERR(kthread)) {
 			ret = PTR_ERR(kthread);

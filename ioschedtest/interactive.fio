@@ -1,0 +1,23 @@
+[global]
+norandommap
+runtime=60s
+
+# Keep the device very busy with writes.
+[interactive_writer]
+numjobs=2
+time_based
+size=1G
+rw=randwrite
+direct=1
+ioengine=libaio
+iodepth=128
+
+# Interactive reader that tries to do some small I/O periodically.
+[interactive_reader]
+size=1M
+rw=randread
+direct=1
+bs=4k
+thinktime=1s
+per_job_logs=0
+write_lat_log=interactive_reader

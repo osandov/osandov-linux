@@ -1,0 +1,28 @@
+[global]
+runtime=60s
+
+# Reader doing the "real" work.
+[writeburst_reader]
+time_based
+size=1G
+rw=read
+direct=1
+per_job_logs=0
+log_avg_msec=1000
+write_bw_log=writeburst_reader
+write_lat_log=writeburst_reader
+
+# Do bursts of writes to interfere with the reader.
+[writeburst_writer1]
+startdelay=20s
+filename=writeburst_writer
+size=512M
+rw=write
+end_fsync=1
+
+[writeburst_writer2]
+startdelay=40s
+filename=writeburst_writer
+size=512M
+rw=write
+end_fsync=1
