@@ -1,0 +1,7 @@
+{
+	"defconfig": "defconfig",
+	"fragments": [
+		"all.fragment",
+		"qemu.fragment"
+	]
+}
