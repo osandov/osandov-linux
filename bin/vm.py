@@ -2,6 +2,7 @@
 
 import argparse
 import os.path
+import runpy
 import subprocess
 import sys
 
@@ -71,107 +72,81 @@ def cmd_create(sh, args):
     if args.size is None:
         args.size = my_input('Size of root disk: ')
     sh.call(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
-             '{0}/{0}.qcow2'.format(args.name), args.size])
-    sh.write_file('{}/vm.py'.format(args.name), """\
-add_option(qemu_options, '-nodefaults')
-add_option(qemu_options, '-nographic')
-add_option(qemu_options, '-serial', 'mon:stdio')
+             '{args.name}/{args.name}.qcow2', args.size])
+    sh.write_file(f'{args.name}/vm.py', f"""\
+qemu_options = [
+    ('-nodefaults',),
+    ('-nographic',),
+    ('-serial', 'mon:stdio'),
 
-add_option(qemu_options, '-cpu', 'kvm64')
-add_option(qemu_options, '-enable-kvm')
-add_option(qemu_options, '-smp', {cpu!r}),
-add_option(qemu_options, '-m', {memory!r}),
-add_option(qemu_options, '-watchdog', 'i6300esb'),
-add_option(qemu_options, '-drive', 'file={name}/{name}.qcow2,index=0,media=disk,if=virtio,cache=none')
-add_option(qemu_options, '-netdev', 'user,id=vlan0')
-add_option(qemu_options, '-device', 'virtio-net,netdev=vlan0')
+    ('-cpu', 'kvm64'),
+    ('-enable-kvm',),
+    ('-smp', {args.cpu!r}),
+    ('-m', {args.memory!r}),
+    ('-watchdog', 'i6300esb'),
 
-append_to_cmdline(qemu_options, 'root=/dev/vda1')
-append_to_cmdline(qemu_options, 'console=ttyS0,115200')
-""".format(name=args.name, cpu=args.cpu, memory=args.memory))
+    # Host forwarding can be enabled by adding to the -netdev option:
+    # hostfwd=[tcp|udp]:[hostaddr]:hostport-[guestaddr]:guestport
+    # e.g., hostfwd=tcp:127.0.0.1:2222-:22
+    ('-netdev', 'user,id=vlan0'),
+    ('-device', 'virtio-net,netdev=vlan0'),
+
+    ('-drive', 'file={args.name}/{args.name}.qcow2,index=0,media=disk,if=virtio,cache=none'),
+]
+
+kernel_cmdline = [
+    'root=/dev/vda1',
+    'console=ttyS0,115200',
+]
+""")
 
 
 def cmd_run(sh, args):
     sh.blank()
     sh.chdir(os.path.expanduser('~/linux/vm'))
 
-    qemu_options = []
-    vm_script_path = '{}/vm.py'.format(args.name)
-    with open(vm_script_path, 'r') as f:
-        code = compile(f.read(), vm_script_path, 'exec')
-        exec(code, globals(), locals())
+    config = runpy.run_path(os.path.join(args.name, 'vm.py'))
+    config.setdefault('qemu_options', [])
+    config.setdefault('kernel_cmdline', [])
+
+    for option in config['qemu_options']:
+        assert all(isinstance(arg, str) for arg in option)
 
     # Command-line arguments.
     if args.kernel:
-        build_path = os.path.expanduser('~/linux/builds/{}'.format(args.kernel))
-        image_name = subprocess.check_output(['make', '-s', 'image_name'], cwd=build_path)
-        image_name = image_name.decode('utf-8').strip()
+        build_path = os.path.expanduser(f'~/linux/builds/{args.kernel}')
+        image_name = subprocess.check_output(
+            ['make', '-s', 'image_name'], cwd=build_path,
+            universal_newlines=True).strip()
         kernel_image_path = os.path.join(build_path, image_name)
-        replace_option(qemu_options, '-kernel', kernel_image_path)
+        config['qemu_options'].append(('-kernel', kernel_image_path))
         virtfs_opts = [
-            'local', 'path={}'.format(build_path), 'security_model=none',
-            'readonly', 'mount_tag=modules'
+            'local', f'path={build_path}', 'security_model=none', 'readonly',
+            'mount_tag=modules'
         ]
-        add_option(qemu_options, '-virtfs', ','.join(virtfs_opts))
+        config['qemu_options'].append(('-virtfs', ','.join(virtfs_opts)))
 
     if args.initrd:
-        add_option(qemu_options, '-initrd', args.initrd)
+        config['qemu_options'].append(('-initrd', args.initrd))
 
-    explicit_append = False
-
-    for append_arg in args.append:
-        explicit_append = True
-        append_to_cmdline(qemu_options, append_arg)
+    if args.append:
+        config['kernel_cmdline'].extend(args.append)
 
     for option in parse_extra_options(args.qemu_options):
-        if option[0] == '-append':
-            explicit_append = True
-        add_option(qemu_options, *option)
+        config['qemu_options'].append(option)
 
     # Don't use the VM script's default append line if a kernel image was not
     # passed. If it was passed explicitly, let QEMU error out on the user.
-    if not explicit_append and not has_option(qemu_options, '-kernel'):
-        pop_option(qemu_options, '-append')
+    if ((has_option(config['qemu_options'], '-kernel') or args.append) and
+        not has_option(config['qemu_options'], '-append')):
+        config['qemu_options'].append(('-append', ' '.join(config['kernel_cmdline'])))
 
     # Convert the options to the actual arguments to execute.
     exec_args = ['qemu-system-x86_64']
-    for option in qemu_options:
+    for option in config['qemu_options']:
         exec_args.extend(option)
 
     sh.exec(exec_args)
-
-
-def add_option(qemu_options, flag, *args):
-    # TODO: do the right thing (append or replace) for any flag
-    append_option(qemu_options, flag, *args)
-
-
-def append_option(qemu_options, flag, *args):
-    assert isinstance(flag, str)
-    for arg in args:
-        assert isinstance(arg, str)
-
-    qemu_options.append((flag,) + args)
-
-
-def replace_option(qemu_options, flag, *args):
-    assert isinstance(flag, str)
-    for arg in args:
-        assert isinstance(arg, str)
-
-    pop_option(qemu_options, flag)
-    qemu_options.append((flag,) + args)
-
-
-def append_to_cmdline(qemu_options, arg):
-    assert isinstance(arg, str)
-    # TODO: quoting?
-    old_options = pop_option(qemu_options, '-append')
-    if old_options is None:
-        append_args = arg
-    else:
-        append_args = '{} {}'.format(old_options[1], arg)
-    qemu_options.append(('-append', append_args))
 
 
 def has_option(qemu_options, flag):
@@ -179,12 +154,6 @@ def has_option(qemu_options, flag):
         if option[0] == flag:
             return True
     return False
-
-
-def pop_option(qemu_options, flag):
-    for i, option in enumerate(qemu_options):
-        if option[0] == flag:
-            return qemu_options.pop(i)
 
 
 def parse_extra_options(extra_options):
