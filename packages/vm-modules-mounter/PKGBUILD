@@ -1,7 +1,7 @@
 # Maintainer: Omar Sandoval <osandov@osandov.com>
 
 pkgname=vm-modules-mounter
-pkgver=r9
+pkgver=r10
 pkgrel=1
 pkgdesc="systemd generator for mounting kernel modules over 9p in a VM"
 arch=('x86_64' 'i686')
@@ -9,10 +9,11 @@ url="https://github.com/osandov/osandov-linux"
 license=('GPL3')
 depends=('systemd')
 makedepends=('git')
-source=(9p-modules-generator.c config.mk Makefile)
+source=(9p-modules-generator.c config.mk Makefile 10-shutdown.conf)
 sha256sums=('889d087d1cfd5ae063d64f9f62fceb7a44ed187d3222d653387748fbf7a20403'
             '298cc2b673e883453a290d1a98f11991c5608852778c65dcb78fec02a190b4bd'
-            'eeb1a209f3764f5b1c6ac48202f418f57f9571e3f6a6607d7fe403deb88482d8')
+            'eeb1a209f3764f5b1c6ac48202f418f57f9571e3f6a6607d7fe403deb88482d8'
+            'ba0f5490cafaf6aeb37e0b3fd50c12a6aa963c51954141e29c450933b5f1b468')
 
 build() {
   make
@@ -20,6 +21,9 @@ build() {
 
 package() {
   make PREFIX=/usr DESTDIR="$pkgdir/" install
+  for unit in systemd-udevd-{control,kernel}.socket systemd-udevd.service; do
+    install -D -m644 "${srcdir}/10-shutdown.conf" -t "${pkgdir}/usr/lib/systemd/system/${unit}.d"
+  done
 }
 
 # vim:set ts=2 sw=2 et:
