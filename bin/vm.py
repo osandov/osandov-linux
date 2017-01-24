@@ -72,7 +72,7 @@ def cmd_create(sh, args):
     if args.size is None:
         args.size = my_input('Size of root disk: ')
     sh.call(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
-             '{args.name}/{args.name}.qcow2', args.size])
+             f'{args.name}/{args.name}.qcow2', args.size])
     sh.write_file(f'{args.name}/vm.py', f"""\
 qemu_options = [
     ('-nodefaults',),
