@@ -2,7 +2,7 @@
 
 set -e
 
-git remote add history https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git
+git remote add history git://git.kernel.org/pub/scm/linux/kernel/git/history/history.git
 git fetch -t history
 cat >> .git/info/grafts << EOF
 1da177e4c3f41524e886b7f1b8a0c1fc7321cac2 e7e173af42dbf37b1d946f9ee00219cb3b2bea6a
