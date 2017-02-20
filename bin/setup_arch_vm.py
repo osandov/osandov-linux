@@ -73,7 +73,7 @@ def configure_locale(sh, args):
 
 def configure_time(sh, args):
     sh.comment('# Configure time')
-    sh.chroot_call(['ln', '-s', os.path.join('/usr/share/zoneinfo', args.timezone), '/etc/localtime'])
+    sh.chroot_call(['ln', '-sf', os.path.join('/usr/share/zoneinfo', args.timezone), '/etc/localtime'])
     sh.chroot_call(['hwclock', '--systohc', '--utc'])
 
 
