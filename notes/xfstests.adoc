@@ -9,7 +9,3 @@ Here are the dependencies I've needed to install to run xfstests:
 - `killall` (Arch: `core/psmisc`, CentOS: `psmisc`)
 - `libaio` (Arch: `core/libaio`, CentOS: `libaio-devel`)
 - `[sg]etfattr` (Arch: `core/attr`, CentOS: `attr`)
-
-== Tests to exclude
-
-Use the output of `exclude_xfstests.sh`.
