@@ -101,7 +101,16 @@ GRUB_DISABLE_RECOVERY=true
 def configure_networking(sh, args):
     sh.comment('# Configure networking')
     sh.write_file('/mnt/etc/hostname', args.hostname + '\n')
-    sh.chroot_call(['systemctl', 'enable', 'dhcpcd.service'])
+    sh.write_file('/mnt/etc/netctl/virtio-net', """\
+Description='virtio-net connection for QEMU guest'
+Interface=ens2
+Connection=ethernet
+IP=static
+Address=('10.0.2.15/24')
+Gateway='10.0.2.2'
+DNS=('10.0.2.3')
+""")
+    sh.chroot_call(['netctl', 'enable', 'virtio-net'])
     sh.chroot_call(['systemctl', 'enable', 'sshd.service'])
 
 
