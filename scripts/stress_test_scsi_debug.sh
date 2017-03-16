@@ -9,6 +9,7 @@ $0 -h
 Options:
   -H    number of SCSI hosts (default: 1)
   -t    number of SCSI targets per host (default: 1)
+  -p    peripheral type (default: 0 -> disk)
 
 Miscellaneous:
   -h    display this help message and exit"
@@ -27,14 +28,18 @@ Miscellaneous:
 
 num_hosts=1
 num_targets=1
+ptype=0
 
-while getopts "hH:t:" OPT; do
+while getopts "hH:t:p:" OPT; do
 	case "$OPT" in
 		H)
 			num_hosts="$OPTARG"
 			;;
 		t)
 			num_targets="$OPTARG"
+			;;
+		p)
+			ptype="$OPTARG"
 			;;
 		h)
 			usage "out"
@@ -46,7 +51,7 @@ while getopts "hH:t:" OPT; do
 done
 
 modprobe -r scsi_debug
-modprobe scsi_debug add_host="${num_hosts}" num_tgts="${num_targets}"
+modprobe scsi_debug add_host="${num_hosts}" num_tgts="${num_targets}" ptype="${ptype}"
 
 hosts=()
 for scsi_host in /sys/class/scsi_host/*; do
@@ -58,8 +63,8 @@ done
 
 targets=()
 for host in "${hosts[@]}"; do
-	for scsi_disk in "/sys/class/scsi_disk/${host}:"*; do
-		targets+=("$(basename "${scsi_disk}")")
+	for scsi_device in "/sys/class/scsi_device/${host}:"*; do
+		targets+=("$(basename "${scsi_device}")")
 	done
 done
 
@@ -73,7 +78,7 @@ for target in "${targets[@]}"; do
 	scan="${target#*:}"
 	scan="${scan//:/ }"
 	while true; do
-		echo 1 > "/sys/class/scsi_disk/${target}/device/delete"
+		echo 1 > "/sys/class/scsi_device/${target}/device/delete"
 		echo "${scan}" > "/sys/class/scsi_host/host${host}/scan"
 	done
 	) &
