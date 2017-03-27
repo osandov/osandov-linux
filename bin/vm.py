@@ -9,54 +9,6 @@ import sys
 import shlib
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description='Manage QEMU virtual machines')
-    parser.add_argument(
-        '--dry-run', action='store_true',
-        help='print the command lines that would be run instead of running them')
-
-    subparsers = parser.add_subparsers(
-        title='command', description='command to run', dest='command')
-    subparsers.required = True
-
-    parser_create = subparsers.add_parser(
-        'create', help='create a new virtual machine')
-    parser_create.add_argument(
-        'name', metavar='NAME', help='name of the VM to create')
-    parser_create.add_argument(
-        '-c', '--cpu', type=str, default='1',
-        help='number of CPUs to give the guest (QEMU -smp option)')
-    parser_create.add_argument(
-        '-m', '--memory', type=str, default='1G',
-        help='amount of RAM to give the guest (QEMU -m option)')
-    parser_create.add_argument(
-        '-s', '--size', type=str, default=None,
-        help="size of the guest's root disk (can use k, M, G, and T suffixes)")
-    parser_create.set_defaults(func=cmd_create)
-
-    parser_run = subparsers.add_parser(
-        'run', help='run a virtual machine')
-    parser_run.add_argument(
-        'name', metavar='NAME', help='name of the VM to run')
-    parser_run.add_argument(
-        '-k', '--kernel', help='kernel in ~/linux/builds to run')
-    parser_run.add_argument(
-        '-i', '--initrd', metavar='FILE',
-        help='file to use as initial ramdisk (only when passing -k)')
-    parser_run.add_argument(
-        '-a', '--append', action='append', default=[],
-        help='append a kernel command line argument (only when passing -k)')
-    parser_run.add_argument(
-        'qemu_options', metavar='QEMU_OPTION', nargs='*',
-        help='extra options to pass directly to QEMU')
-    parser_run.set_defaults(func=cmd_run)
-
-    args = parser.parse_args()
-    sh = shlib.Shlib(dry_run=args.dry_run)
-    args.func(sh, args)
-
-
 def my_input(prompt=None):
     if prompt is not None:
         sys.stderr.write(prompt)
@@ -167,6 +119,54 @@ def parse_extra_options(extra_options):
             option.append(arg)
     if option:
         yield tuple(option)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Manage QEMU virtual machines')
+    parser.add_argument(
+        '--dry-run', action='store_true',
+        help='print the command lines that would be run instead of running them')
+
+    subparsers = parser.add_subparsers(
+        title='command', description='command to run', dest='command')
+    subparsers.required = True
+
+    parser_create = subparsers.add_parser(
+        'create', help='create a new virtual machine')
+    parser_create.add_argument(
+        'name', metavar='NAME', help='name of the VM to create')
+    parser_create.add_argument(
+        '-c', '--cpu', type=str, default='1',
+        help='number of CPUs to give the guest (QEMU -smp option)')
+    parser_create.add_argument(
+        '-m', '--memory', type=str, default='1G',
+        help='amount of RAM to give the guest (QEMU -m option)')
+    parser_create.add_argument(
+        '-s', '--size', type=str, default=None,
+        help="size of the guest's root disk (can use k, M, G, and T suffixes)")
+    parser_create.set_defaults(func=cmd_create)
+
+    parser_run = subparsers.add_parser(
+        'run', help='run a virtual machine')
+    parser_run.add_argument(
+        'name', metavar='NAME', help='name of the VM to run')
+    parser_run.add_argument(
+        '-k', '--kernel', help='kernel in ~/linux/builds to run')
+    parser_run.add_argument(
+        '-i', '--initrd', metavar='FILE',
+        help='file to use as initial ramdisk (only when passing -k)')
+    parser_run.add_argument(
+        '-a', '--append', action='append', default=[],
+        help='append a kernel command line argument (only when passing -k)')
+    parser_run.add_argument(
+        'qemu_options', metavar='QEMU_OPTION', nargs='*',
+        help='extra options to pass directly to QEMU')
+    parser_run.set_defaults(func=cmd_run)
+
+    args = parser.parse_args()
+    sh = shlib.Shlib(dry_run=args.dry_run)
+    args.func(sh, args)
 
 
 if __name__ == '__main__':
