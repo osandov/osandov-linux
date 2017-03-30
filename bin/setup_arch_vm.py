@@ -111,6 +111,8 @@ Gateway=10.0.2.2
 DNS=10.0.2.3
 """)
     sh.chroot_call(['systemctl', 'enable', 'systemd-networkd.service'])
+    sh.chroot_call(['systemctl', 'enable', 'systemd-resolved.service'])
+    sh.chroot_call(['ln', '-sf', '/run/systemd/resolve/resolv.conf', '/etc/resolv.conf'])
     sh.chroot_call(['systemctl', 'enable', 'sshd.service'])
 
 
