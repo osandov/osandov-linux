@@ -1,26 +1,22 @@
 # Maintainer: Omar Sandoval <osandov@osandov.com>
 
 pkgname=vm-modules-mounter
-pkgver=r11
+pkgver=r12
 pkgrel=1
-pkgdesc="systemd generator for mounting kernel modules over 9p in a VM"
+pkgdesc="Service for mounting kernel modules for a virtual machine over 9p"
 arch=('x86_64' 'i686')
 url="https://github.com/osandov/osandov-linux"
 license=('GPL3')
+install="${pkgname}.install"
 depends=('systemd')
-makedepends=('git')
-source=(9p-modules-generator.c config.mk Makefile 10-shutdown.conf)
-sha256sums=('889d087d1cfd5ae063d64f9f62fceb7a44ed187d3222d653387748fbf7a20403'
-            '298cc2b673e883453a290d1a98f11991c5608852778c65dcb78fec02a190b4bd'
-            '537b4a2e4502bd72f9ab086b99bb6afcad5ac16c21a3719b7af8a4a40757e6b3'
+source=(Makefile vm-modules-mounter.sh vm-modules-mounter.service 10-shutdown.conf)
+sha256sums=('cdf3137dde988ff9146a11f0e0650a3c731b9671f9409c8d4076e77d8a9f4158'
+            '38708f1978abb0e6349ed70ecf838fedef0807e6754b75fe65095619cf54b971'
+            '7544d152eb1f202f362e66b3c40619e45f6342f4179d34a3f90226c2181450f5'
             'ba0f5490cafaf6aeb37e0b3fd50c12a6aa963c51954141e29c450933b5f1b468')
 
-build() {
-  make
-}
-
 package() {
-  make PREFIX=/usr DESTDIR="$pkgdir/" install
+  make DESTDIR="$pkgdir/" install
 }
 
 # vim:set ts=2 sw=2 et:

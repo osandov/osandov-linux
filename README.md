@@ -47,8 +47,8 @@ system.
 
 QEMU's `-kernel` option boots the VM straight into a kernel image. This,
 however, doesn't handle kernel modules. For that, `vm.py` provides a VirtFS to
-the guest containing the modules. The guest mounts this while booting
-(implemented with a systemd generator in `packages/vm-modules-mounter`).
+the guest containing the modules, which the guest mounts while booting
+(implemented in `packages/vm-modules-mounter`).
 
 ### `setup_arch_vm.py`
 

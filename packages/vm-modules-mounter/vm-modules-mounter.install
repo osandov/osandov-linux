@@ -1,0 +1,5 @@
+post_install() {
+  echo 'Run `systemctl enable vm-modules-mounter.service` to enable automatic mounting'
+}
+
+# vim:set ts=2 sw=2 et:
