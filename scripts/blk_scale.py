@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Test blk-mq scalability with the null-blk kernel module.
+Test block layer scalability
 """
 
 import argparse
@@ -18,13 +18,6 @@ import sys
 
 
 def run_fio(args, num_jobs):
-    subprocess.check_call(['modprobe', '-r', 'null_blk'])
-    subprocess.check_call(['modprobe', 'null_blk', 'queue_mode=2',
-                           'hw_queue_depth={}'.format(args.queue_depth),
-                           'submit_queues={}'.format(args.hw_queues)])
-    if args.disable_iostats:
-        with open('/sys/block/nullb0/queue/iostats', 'w') as f:
-            f.write('0\n')
     name = 'fio{}'.format(num_jobs)
     output = name + '.json'
     fio_cmd = [
@@ -32,7 +25,7 @@ def run_fio(args, num_jobs):
         '--output={}'.format(output),
         '--output-format=json',
         '--name={}'.format(name),
-        '--filename=/dev/nullb0',
+        '--filename={}'.format(args.dev),
         '--direct=1',
         '--numjobs={}'.format(num_jobs),
         '--cpus_allowed_policy=split',
@@ -41,6 +34,7 @@ def run_fio(args, num_jobs):
         '--ioengine={}'.format(args.ioengine),
         '--iodepth={}'.format(args.iodepth),
         '--rw={}'.format(args.rw),
+        '--unified_rw_reporting=1',
     ]
     subprocess.check_call(fio_cmd, stdout=subprocess.DEVNULL)
 
@@ -50,16 +44,16 @@ def run_fio(args, num_jobs):
 
 
 def aggregate_iops(fio_output):
-    read_iops = [job['read']['iops'] for job in fio_output['jobs']]
-    read_merges = sum(disk_util['read_merges'] for disk_util in fio_output['disk_util'])
+    iops = [job['mixed']['iops'] for job in fio_output['jobs']]
+    merges = sum(disk_util['read_merges'] + disk_util['write_merges'] for disk_util in fio_output['disk_util'])
     return {
             'num_jobs': len(fio_output['jobs']),
-            'total_iops': sum(read_iops),
-            'min_iops': min(read_iops),
-            'max_iops': max(read_iops),
-            'mean_iops': statistics.mean(read_iops),
-            'iops_stdev': statistics.stdev(read_iops) if len(read_iops) > 1 else 0.0,
-            'merges': read_merges,
+            'total_iops': sum(iops),
+            'min_iops': min(iops),
+            'max_iops': max(iops),
+            'mean_iops': statistics.mean(iops),
+            'iops_stdev': statistics.stdev(iops) if len(iops) > 1 else 0.0,
+            'merges': merges,
     }
 
 
@@ -80,39 +74,31 @@ def main():
             raise ValueError
         return n
     parser = argparse.ArgumentParser(
-        description='test blk-mq scalability with null-blk',
+        description='test block layer scalability',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--parse', metavar='PATH', type=str, default=argparse.SUPPRESS,
         help='parse saved result directory instead of running; all other options will be ignored')
+    parser.add_argument(
+        'dev', metavar='DEV', type=str, nargs='?', help='block device to run on')
 
-    script_group = parser.add_argument_group('script options')
-    script_group.add_argument(
-        '-m', '--min-jobs', type=int, default=1,
-        help='minimum number of jobs to run in parallel')
-    script_group.add_argument(
-        '-M', '--max-jobs', type=int, default=multiprocessing.cpu_count(),
-        help='maximum number of jobs to run in parallel')
+    parser.add_argument(
+        '-j', '--jobs', type=str, default=argparse.SUPPRESS,
+        help='comma-separated list of numbers of jobs to run in parallel (default: 1,2,...,number of CPUs)')
 
-    null_blk_group = parser.add_argument_group('null-blk parameters')
-    null_blk_group.add_argument(
-        '-q', '--hw-queues', type=positive_int, default=multiprocessing.cpu_count(),
-        help='number of null-blk hardware queues to use')
-    null_blk_group.add_argument(
-        '-d', '--queue-depth', type=positive_int, default=64,
-        help='depth of null-blk hardware queues')
-    null_blk_group.add_argument(
-        '--disable-iostats', action='store_true', help='disable iostats')
-
-    fio_group = parser.add_argument_group('fio parameters')
-    fio_group.add_argument(
-        '--ioengine', type=str, default='libaio', help='I/O engine')
-    fio_group.add_argument(
-        '--iodepth', type=positive_int, default=64, help='I/O depth')
-    fio_group.add_argument(
-        '--rw', type=str, default='randread', help='I/O pattern')
+    parser.add_argument(
+        '--ioengine', type=str, default='libaio', help='I/O engine for fio')
+    parser.add_argument(
+        '--iodepth', type=positive_int, default=64, help='I/O depth for fio')
+    parser.add_argument(
+        '--rw', type=str, default='randread', help='I/O pattern for fio')
 
     args = parser.parse_args()
+
+    if hasattr(args, 'jobs'):
+        args.jobs = [int(x) for x in args.jobs.split(',')]
+    else:
+        args.jobs = list(range(1, multiprocessing.cpu_count() + 1))
 
     if hasattr(args, 'parse'):
         os.chdir(args.parse)
@@ -126,8 +112,11 @@ def main():
             print_results(iops)
         return
 
+    if args.dev is None:
+        parser.error('DEV is required unless --parse is given')
+
     now = datetime.datetime.now()
-    dir = 'null_blk_scale_' + now.replace(microsecond=0).isoformat()
+    dir = 'blk_scale_' + now.replace(microsecond=0).isoformat()
     os.mkdir(dir)
     print(os.path.abspath(dir), file=sys.stderr)
     os.chdir(dir)
@@ -141,7 +130,7 @@ def main():
         json.dump(info, f, sort_keys=True, indent=4)
 
     print_header()
-    for num_jobs in range(args.min_jobs, args.max_jobs + 1):
+    for num_jobs in args.jobs:
         iops = run_fio(args, num_jobs)
         print_results(iops)
 
