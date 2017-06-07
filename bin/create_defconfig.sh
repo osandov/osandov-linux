@@ -31,3 +31,4 @@ make olddefconfig
 lsmod | head -1 > lsmod
 make LSMOD=lsmod localmodconfig
 make savedefconfig
+rm -f lsmod
