@@ -79,6 +79,7 @@ def main():
     for module, options in sorted(module_options.items()):
         if len(options) == 0:
             print('warning: no config options found for {}'.format(module), file=sys.stderr)
+            continue
         for option in options:
             if option in config:
                 break
