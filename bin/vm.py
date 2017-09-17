@@ -18,7 +18,10 @@ def my_input(prompt=None):
 
 def cmd_create(sh, args):
     sh.blank()
-    sh.chdir(os.path.expanduser('~/linux/vm'))
+
+    vm_dir = os.path.expanduser('~/linux/vm')
+    sh.mkdir(vm_dir, parents=True)
+    sh.chdir(vm_dir)
 
     sh.mkdir(args.name)
     if args.size is None:
@@ -55,7 +58,8 @@ kernel_cmdline = [
 
 def cmd_run(sh, args):
     sh.blank()
-    sh.chdir(os.path.expanduser('~/linux/vm'))
+    # Need to chdir even in dry-run mode in order to load config.
+    sh.chdir(os.path.expanduser('~/linux/vm'), always=True)
 
     config = runpy.run_path(os.path.join(args.name, 'vm.py'))
     config.setdefault('qemu_options', [])

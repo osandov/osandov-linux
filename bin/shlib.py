@@ -30,11 +30,11 @@ class Shlib:
         if self._dry_run:
             print()
 
-    def chdir(self, path):
+    def chdir(self, path, always=False):
         if self._dry_run:
             print('cd {}'.format(shlex.quote(path)))
-        # Note: this actually does the chdir even in dry-run mode.
-        os.chdir(path)
+        if always or not self._dry_run:
+            os.chdir(path)
 
     @staticmethod
     def _to_heredoc(cmd, input, output_path=None):
@@ -76,9 +76,11 @@ class Shlib:
         else:
             os.execvp(cmd[0], cmd)
 
-    def mkdir(self, path):
+    def mkdir(self, path, parents=False):
         if self._dry_run:
-            print('mkdir {}'.format(shlex.quote(path)))
+            print(f"mkdir{' -p' if parents else ''} {shlex.quote(path)}")
+        elif parents:
+            os.makedirs(path, exist_ok=True)
         else:
             os.mkdir(path)
 
