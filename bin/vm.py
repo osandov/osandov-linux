@@ -13,8 +13,6 @@ import sys
 import termios
 import urllib.request
 
-import shlib
-
 
 def my_input(prompt=None):
     if prompt is not None:
@@ -36,17 +34,18 @@ def prompt_yes_no(prompt, default=True):
         return default
 
 
-def cmd_create(sh, args):
+def cmd_create(args):
     vm_dir = os.path.expanduser('~/linux/vm')
-    sh.mkdir(vm_dir, parents=True)
-    sh.chdir(vm_dir)
+    os.makedirs(vm_dir, exist_ok=True)
+    os.chdir(vm_dir)
 
-    sh.mkdir(args.name)
+    os.mkdir(args.name)
     if args.size is None:
         args.size = my_input('Size of root disk: ')
-    sh.call(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
+    os.call(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
              f'{args.name}/{args.name}.qcow2', args.size])
-    sh.write_file(f'{args.name}/vm.py', f"""\
+    with open(f'{args.name}/vm.py', 'w') as f:
+        f.write(f"""\
 qemu_options = [
     ('-nodefaults',),
     ('-nographic',),
@@ -118,10 +117,10 @@ def get_qemu_args(args):
     return exec_args
 
 
-def cmd_run(sh, args):
-    # Need to chdir even in dry-run mode in order to load config.
-    sh.chdir(os.path.expanduser('~/linux/vm'), always=True)
-    sh.exec(get_qemu_args(args))
+def cmd_run(args):
+    os.chdir(os.path.expanduser('~/linux/vm'))
+    args = get_qemu_args(args)
+    os.execvp(args[0], args)
 
 
 def has_option(qemu_options, flag):
@@ -312,10 +311,7 @@ def interact(master):
 
 
 
-def cmd_archinstall(sh, args):
-    if args.dry_run:
-        sys.exit('archinstall does not support --dry-run')
-
+def cmd_archinstall(args):
     args.packages = [
         # Base system
         'base',
@@ -380,9 +376,6 @@ def cmd_archinstall(sh, args):
 def main():
     parser = argparse.ArgumentParser(
         description='Manage QEMU virtual machines')
-    parser.add_argument(
-        '--dry-run', action='store_true',
-        help='print the command lines that would be run instead of running them')
 
     subparsers = parser.add_subparsers(
         title='command', description='command to run', dest='command')
@@ -450,8 +443,7 @@ def main():
     parser_archinstall.set_defaults(func=cmd_archinstall)
 
     args = parser.parse_args()
-    sh = shlib.Shlib(dry_run=args.dry_run)
-    args.func(sh, args)
+    args.func(args)
 
 
 if __name__ == '__main__':

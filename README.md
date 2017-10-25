@@ -21,8 +21,7 @@ super fast edit-compile-test cycle.
 ### `vm.py`
 
 `vm.py` is my VM management script. It fills a role similar to that of
-something like libvirt but is much simpler. The `--dry-run` flag outputs the
-shell commands equiivalent to what `vm.py` would do for any given command line.
+something like libvirt but is much simpler.
 
 VMs live in `~/linux/vm`. Each VM has its own directory containing all of its
 disk images and its configuration file.
