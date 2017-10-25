@@ -69,6 +69,12 @@ class Shlib:
             subprocess.run(cmd, shell=shell, input=input, check=True,
                            universal_newlines=True)
 
+    def echo(self, s):
+        if self._dry_run:
+            print(f'echo {shlex.quote(s)}')
+        else:
+            print(s)
+
     def exec(self, cmd):
         if self._dry_run:
             cmd = ' '.join(shlex.quote(arg) for arg in cmd)
@@ -83,6 +89,12 @@ class Shlib:
             os.makedirs(path, exist_ok=True)
         else:
             os.mkdir(path)
+
+    def rename(self, src, dst):
+        if self._dry_run:
+            print(f"mv {shlex.quote(src)} {shlex.quote(dst)}")
+        else:
+            os.rename(src, dst)
 
     def write_file(self, path, contents):
         if self._dry_run:
