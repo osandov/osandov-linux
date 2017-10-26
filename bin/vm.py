@@ -14,13 +14,6 @@ import termios
 import urllib.request
 
 
-def my_input(prompt=None):
-    if prompt is not None:
-        sys.stderr.write(prompt)
-        sys.stderr.flush()
-    return input()
-
-
 def prompt_yes_no(prompt, default=True):
     prompt += ' [Y/n] ' if default else ' [y/N] '
     sys.stderr.write(prompt)
@@ -40,10 +33,8 @@ def cmd_create(args):
     os.chdir(vm_dir)
 
     os.mkdir(args.name)
-    if args.size is None:
-        args.size = my_input('Size of root disk: ')
-    os.call(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
-             f'{args.name}/{args.name}.qcow2', args.size])
+    subprocess.run(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
+                    f'{args.name}/{args.name}.qcow2', args.size], check=True)
     with open(f'{args.name}/config.py', 'w') as f:
         f.write(f"""\
 qemu_options = [
@@ -95,15 +86,17 @@ def get_qemu_args(args):
 
     if hasattr(args, 'initrd'):
         qemu_options.extend(('-initrd', args.initrd))
-    qemu_options.extend(args.qemu_options)
+    if hasattr(args, 'qemu_options'):
+        qemu_options.extend(args.qemu_options)
 
     kernel_cmdline = config.get('kernel_cmdline', [])
-    kernel_cmdline.extend(args.append)
+    if hasattr(args, 'append'):
+        kernel_cmdline.extend(args.append)
 
     # Don't use the VM script's default append line if a kernel image was not
     # passed. If it was passed explicitly, let QEMU error out on the user.
-    if (('-kernel' in qemu_options or args.append) and
-         '-append' not in qemu_options):
+    if (('-kernel' in qemu_options or hasattr(args, 'append')) and
+        '-append' not in qemu_options):
         qemu_options.extend(('-append', ' '.join(kernel_cmdline)))
 
     return qemu_options
@@ -354,22 +347,24 @@ def main():
     subparsers.required = True
 
     parser_create = subparsers.add_parser(
-        'create', help='create a new virtual machine')
+        'create', help='create a new virtual machine',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser_create.add_argument(
         'name', metavar='NAME', help='name of the VM to create')
     parser_create.add_argument(
-        '-c', '--cpu', type=str, default='1',
+        '-c', '--cpu', type=str, default='2',
         help='number of CPUs to give the guest (QEMU -smp option)')
     parser_create.add_argument(
-        '-m', '--memory', type=str, default='1G',
+        '-m', '--memory', type=str, default='2G',
         help='amount of RAM to give the guest (QEMU -m option)')
     parser_create.add_argument(
-        '-s', '--size', type=str, default=None,
+        '-s', '--size', type=str, default='16G',
         help="size of the guest's root disk (can use k, M, G, and T suffixes)")
     parser_create.set_defaults(func=cmd_create)
 
     parser_run = subparsers.add_parser(
-        'run', help='run a virtual machine')
+        'run', help='run a virtual machine',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser_run.add_argument(
         'name', metavar='NAME', help='name of the VM to run')
     parser_run.add_argument(
@@ -379,7 +374,7 @@ def main():
         '-i', '--initrd', metavar='FILE', default=argparse.SUPPRESS,
         help='file to use as initial ramdisk (only when passing -k)')
     parser_run.add_argument(
-        '-a', '--append', action='append', default=[],
+        '-a', '--append', action='append', default=argparse.SUPPRESS,
         help='append a kernel command line argument (only when passing -k)')
     parser_run.add_argument(
         'qemu_options', metavar='QEMU_OPTION', nargs='*',
