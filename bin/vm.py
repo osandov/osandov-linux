@@ -231,29 +231,13 @@ poweroff
     # TODO: also install vm-modules-mounter
 
 
-def expect(master, what):
-    buf = bytearray()
-    while True:
-        try:
-            b = master.read(1)
-        except OSError as e:
-            if e.errno == errno.EIO:
-                raise EOFError
-            raise e
-        assert len(b) == 1
-        if b == b'\n':
-            buf.clear()
-        sys.stdout.buffer.write(b)
-        sys.stdout.buffer.flush()
-        buf.extend(b)
-        if buf.endswith(what):
-            break
-
-
-def interact(master):
+def interact(master, expect=None):
     sel = selectors.DefaultSelector()
     sel.register(master, selectors.EVENT_READ)
     sel.register(sys.stdin, selectors.EVENT_READ)
+
+    if expect is not None:
+        buf = bytearray()
 
     while True:
         events = sel.select()
@@ -263,10 +247,17 @@ def interact(master):
                     b = master.read(1)
                 except OSError as e:
                     if e.errno == errno.EIO:
-                        return
+                        if expect is not None:
+                            raise EOFError
+                        else:
+                            return
                     raise e
                 sys.stdout.buffer.write(b)
                 sys.stdout.buffer.flush()
+                if expect is not None:
+                    buf.extend(b)
+                    if buf.endswith(expect):
+                        return
             else:  # key.fileobj == sys.stdin
                 b = os.read(sys.stdin.fileno(), 1)
                 master.write(b)
@@ -321,11 +312,11 @@ def cmd_archinstall(args):
         tty.setraw(fd)
         with os.fdopen(fd, 'r+b', buffering=0) as master:
             try:
-                expect(master, b'Boot Arch Linux')
+                interact(master, b'Boot Arch Linux')
                 master.write(b'\t console=ttyS0,115200\n')
-                expect(master, b'login: ')
+                interact(master, b'login: ')
                 master.write(b'root\n')
-                expect(master, b'# ')
+                interact(master, b'# ')
                 master.write(b'OLD_PS2="$PS2"; PS2=\n')  # Disable the heredoc> prompt.
                 master.write(b'cat > install.sh << "SCRIPTEOF"\n')
                 master.write(install_script(args).encode())
@@ -333,6 +324,8 @@ def cmd_archinstall(args):
                 master.write(b'PS2="$OLDPS2"\n')
                 master.write(b'chmod +x ./install.sh && ./install.sh\n')
                 interact(master)
+            except EOFError:
+                pass
             except Exception as e:
                 os.kill(pid, signal.SIGKILL)
                 raise e
