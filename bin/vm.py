@@ -4,10 +4,12 @@ import argparse
 import errno
 import os
 import os.path
+import pty
 import re
 import runpy
 import selectors
 import shlex
+import signal
 import subprocess
 import sys
 import termios
@@ -316,11 +318,12 @@ def cmd_archinstall(args):
     os.chdir(os.path.expanduser('~/linux/vm'))
     qemu_args = get_qemu_args(args) + ['-boot', 'd', '-no-reboot', '-cdrom', args.iso]
 
-    master_fd, slave_fd = os.openpty()
-    with os.fdopen(master_fd, 'r+b', buffering=0) as master, \
-         subprocess.Popen(qemu_args, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd) as proc:
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.execvp(qemu_args[0], qemu_args)
+
+    with os.fdopen(fd, 'r+b', buffering=0) as master:
         try:
-            os.close(slave_fd)
             expect(master, b'Boot Arch Linux')
             master.write(b'\t console=ttyS0,115200\n')
             expect(master, b'login: ')
@@ -334,8 +337,9 @@ def cmd_archinstall(args):
             master.write(b'chmod +x ./install.sh && ./install.sh\n')
             interact(master)
         except Exception as e:
-            proc.kill()
+            os.kill(pid, signal.SIGKILL)
             raise e
+    os.waitpid(pid)
 
 
 def main():
