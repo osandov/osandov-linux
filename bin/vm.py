@@ -130,8 +130,9 @@ def download_latest_archiso(mirror):
     return iso_path
 
 
-def install_script(args):
-    return f"""\
+def install_script(args, proxy_vars):
+    script = []
+    script.append(f"""\
 #!/bin/bash
 
 set -ex
@@ -144,7 +145,8 @@ locale={shlex.quote(args.locales[0])}
 locales={shlex.quote('|'.join([re.escape(locale) for locale in args.locales]))}
 timezone={shlex.quote(args.timezone)}
 hostname={shlex.quote(args.hostname)}
-""" + r"""
+""")
+    script.append(r"""
 # Prepare storage devices
 wipefs -a "${root_dev}"
 parted "${root_dev}" --align optimal --script mklabel msdos mkpart primary 0% 100%
@@ -153,6 +155,12 @@ ${mkfs_cmd} "${root_part}"
 mount "${root_part}" /mnt
 
 # Install packages
+# dirmngr doesn't use http_proxy by default. Additionally, its built-in DNS
+# resolver doesn't seem to play nicely with QEMU.
+cat << "EOF" > /etc/pacman.d/gnupg/dirmngr.conf
+honor-http-proxy
+standard-resolver
+EOF
 # This will be copied to the installed system by pacstrap
 : > /etc/pacman.d/mirrorlist
 for mirror in "${mirrors[@]}"; do
@@ -160,7 +168,15 @@ for mirror in "${mirrors[@]}"; do
 done
 pacstrap /mnt "${packages[@]}"
 genfstab -U /mnt >> /mnt/etc/fstab
-
+cp /etc/pacman.d/gnupg/dirmngr.conf /mnt/etc/pacman.d/gnupg/dirmngr.conf
+""")
+    if proxy_vars:
+        script.append(f"""
+# Configure proxy
+cat << "EOF" > /mnt/etc/profile.d/proxy.sh
+{proxy_vars}EOF
+""")
+    script.append(r"""
 # Configure locale
 sed -r -i "s/^#(${locales}) /\\1 /" /mnt/etc/locale.gen
 echo "LANG=${locale}" > /mnt/etc/locale.conf
@@ -227,8 +243,9 @@ arch-chroot /mnt useradd -m fsgqa
 echo "root:${hostname}" | arch-chroot /mnt chpasswd
 
 poweroff
-"""
+""")
     # TODO: also install vm-modules-mounter
+    return ''.join(script)
 
 
 def interact(master, expect=None):
@@ -300,6 +317,11 @@ def cmd_archinstall(args):
         mirror = args.pacman_mirrors[0].replace('$repo/os/$arch', 'iso/latest')
         args.iso = download_latest_archiso(mirror)
 
+    proxy_vars = ''.join([
+        f'export {name}={os.environ[name]}\n'
+        for name in ['http_proxy', 'https_proxy', 'ftp_proxy']
+        if name in os.environ])
+
     os.chdir(os.path.expanduser('~/linux/vm'))
     qemu_args = get_qemu_args(args) + ['-boot', 'd', '-no-reboot', '-cdrom', args.iso]
 
@@ -318,8 +340,9 @@ def cmd_archinstall(args):
                 master.write(b'root\r')
                 interact(master, b'# ')
                 master.write(b'OLD_PS2="$PS2"; PS2=\r')  # Disable the heredoc> prompt.
+                master.write(proxy_vars.encode())
                 master.write(b'cat > install.sh << "SCRIPTEOF"\r')
-                master.write(install_script(args).encode())
+                master.write(install_script(args, proxy_vars).encode())
                 master.write(b'SCRIPTEOF\r')
                 master.write(b'PS2="$OLDPS2"\r')
                 master.write(b'chmod +x ./install.sh && ./install.sh\r')
