@@ -44,26 +44,26 @@ def cmd_create(args):
         args.size = my_input('Size of root disk: ')
     os.call(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
              f'{args.name}/{args.name}.qcow2', args.size])
-    with open(f'{args.name}/vm.py', 'w') as f:
+    with open(f'{args.name}/config.py', 'w') as f:
         f.write(f"""\
 qemu_options = [
-    ('-nodefaults',),
-    ('-nographic',),
-    ('-serial', 'mon:stdio'),
+    '-nodefaults',
+    '-nographic',
+    '-serial', 'mon:stdio',
 
-    ('-cpu', 'kvm64'),
-    ('-enable-kvm',),
-    ('-smp', {args.cpu!r}),
-    ('-m', {args.memory!r}),
-    ('-watchdog', 'i6300esb'),
+    '-cpu', 'kvm64',
+    '-enable-kvm',
+    '-smp', {args.cpu!r},
+    '-m', {args.memory!r},
+    '-watchdog', 'i6300esb',
 
     # Host forwarding can be enabled by adding to the -netdev option:
     # hostfwd=[tcp|udp]:[hostaddr]:hostport-[guestaddr]:guestport
     # e.g., hostfwd=tcp:127.0.0.1:2222-:22
-    ('-netdev', 'user,id=vlan0'),
-    ('-device', 'virtio-net,netdev=vlan0'),
+    '-netdev', 'user,id=vlan0',
+    '-device', 'virtio-net,netdev=vlan0',
 
-    ('-drive', 'file={args.name}/{args.name}.qcow2,index=0,media=disk,if=virtio,cache=none'),
+    '-drive', 'file={args.name}/{args.name}.qcow2,index=0,media=disk,if=virtio,cache=none',
 ]
 
 kernel_cmdline = [
@@ -74,73 +74,45 @@ kernel_cmdline = [
 
 
 def get_qemu_args(args):
-    config = runpy.run_path(os.path.join(args.name, 'vm.py'))
-    config.setdefault('qemu_options', [])
-    config.setdefault('kernel_cmdline', [])
+    config = runpy.run_path(os.path.join(args.name, 'config.py'))
 
-    for option in config['qemu_options']:
-        assert all(isinstance(arg, str) for arg in option)
+    qemu_options = ['qemu-system-x86_64']
+    qemu_options.extend(config.get('qemu_options', []))
 
     # Command-line arguments.
-    if getattr(args, 'kernel', None):
-        build_path = os.path.expanduser(f'~/linux/builds/{args.kernel}')
+    if hasattr(args, 'kernel'):
+        build_path = os.path.join(os.path.expanduser('~/linux/builds/'), args.kernel)
         image_name = subprocess.check_output(
             ['make', '-s', 'image_name'], cwd=build_path,
             universal_newlines=True).strip()
         kernel_image_path = os.path.join(build_path, image_name)
-        config['qemu_options'].append(('-kernel', kernel_image_path))
+        qemu_options.extend(('-kernel', kernel_image_path))
         virtfs_opts = [
             'local', f'path={build_path}', 'security_model=none', 'readonly',
-            'mount_tag=modules'
+            'mount_tag=modules',
         ]
-        config['qemu_options'].append(('-virtfs', ','.join(virtfs_opts)))
+        qemu_options.extend(('-virtfs', ','.join(virtfs_opts)))
 
-    if getattr(args, 'initrd', None):
-        config['qemu_options'].append(('-initrd', args.initrd))
+    if hasattr(args, 'initrd'):
+        qemu_options.extend(('-initrd', args.initrd))
+    qemu_options.extend(args.qemu_options)
 
-    if getattr(args, 'append', None):
-        config['kernel_cmdline'].extend(args.append)
-
-    for option in parse_extra_options(getattr(args, 'qemu_options', ())):
-        config['qemu_options'].append(option)
+    kernel_cmdline = config.get('kernel_cmdline', [])
+    kernel_cmdline.extend(args.append)
 
     # Don't use the VM script's default append line if a kernel image was not
     # passed. If it was passed explicitly, let QEMU error out on the user.
-    if ((has_option(config['qemu_options'], '-kernel') or getattr(args, 'append', None)) and
-        not has_option(config['qemu_options'], '-append')):
-        config['qemu_options'].append(('-append', ' '.join(config['kernel_cmdline'])))
+    if (('-kernel' in qemu_options or args.append) and
+         '-append' not in qemu_options):
+        qemu_options.extend(('-append', ' '.join(kernel_cmdline)))
 
-    # Convert the options to the actual arguments to execute.
-    exec_args = ['qemu-system-x86_64']
-    for option in config['qemu_options']:
-        exec_args.extend(option)
-    return exec_args
+    return qemu_options
 
 
 def cmd_run(args):
     os.chdir(os.path.expanduser('~/linux/vm'))
     args = get_qemu_args(args)
     os.execvp(args[0], args)
-
-
-def has_option(qemu_options, flag):
-    for option in qemu_options:
-        if option[0] == flag:
-            return True
-    return False
-
-
-def parse_extra_options(extra_options):
-    option = None
-    for arg in extra_options:
-        if arg.startswith('-'):
-            if option:
-                yield tuple(option)
-            option = [arg]
-        else:
-            option.append(arg)
-    if option:
-        yield tuple(option)
 
 
 def download_latest_archiso(mirror):
@@ -401,9 +373,10 @@ def main():
     parser_run.add_argument(
         'name', metavar='NAME', help='name of the VM to run')
     parser_run.add_argument(
-        '-k', '--kernel', help='kernel in ~/linux/builds to run')
+        '-k', '--kernel', default=argparse.SUPPRESS,
+        help='kernel in ~/linux/builds to run')
     parser_run.add_argument(
-        '-i', '--initrd', metavar='FILE',
+        '-i', '--initrd', metavar='FILE', default=argparse.SUPPRESS,
         help='file to use as initial ramdisk (only when passing -k)')
     parser_run.add_argument(
         '-a', '--append', action='append', default=[],
