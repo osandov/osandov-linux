@@ -313,16 +313,16 @@ def cmd_archinstall(args):
         with os.fdopen(fd, 'r+b', buffering=0) as master:
             try:
                 interact(master, b'Boot Arch Linux')
-                master.write(b'\t console=ttyS0,115200\n')
+                master.write(b'\t console=ttyS0,115200\r')
                 interact(master, b'login: ')
-                master.write(b'root\n')
+                master.write(b'root\r')
                 interact(master, b'# ')
-                master.write(b'OLD_PS2="$PS2"; PS2=\n')  # Disable the heredoc> prompt.
-                master.write(b'cat > install.sh << "SCRIPTEOF"\n')
+                master.write(b'OLD_PS2="$PS2"; PS2=\r')  # Disable the heredoc> prompt.
+                master.write(b'cat > install.sh << "SCRIPTEOF"\r')
                 master.write(install_script(args).encode())
-                master.write(b'SCRIPTEOF\n')
-                master.write(b'PS2="$OLDPS2"\n')
-                master.write(b'chmod +x ./install.sh && ./install.sh\n')
+                master.write(b'SCRIPTEOF\r')
+                master.write(b'PS2="$OLDPS2"\r')
+                master.write(b'chmod +x ./install.sh && ./install.sh\r')
                 interact(master)
             except EOFError:
                 pass
