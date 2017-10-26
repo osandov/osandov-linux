@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import termios
+import tty
 import urllib.request
 
 
@@ -253,29 +254,22 @@ def interact(master):
     sel = selectors.DefaultSelector()
     sel.register(master, selectors.EVENT_READ)
     sel.register(sys.stdin, selectors.EVENT_READ)
-    old = termios.tcgetattr(sys.stdin.fileno())
-    new = termios.tcgetattr(sys.stdin.fileno())
-    new[3] &= ~(termios.ECHO | termios.ICANON)
-    try:
-        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, new)
-        while True:
-            events = sel.select()
-            for key, mask in events:
-                if key.fileobj == master:
-                    try:
-                        b = master.read(1)
-                    except OSError as e:
-                        if e.errno == errno.EIO:
-                            return
-                        raise e
-                    sys.stdout.buffer.write(b)
-                    sys.stdout.buffer.flush()
-                else:  # key.fileobj == sys.stdin
-                    b = sys.stdin.buffer.read(1)
-                    master.write(b)
-    finally:
-        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old)
 
+    while True:
+        events = sel.select()
+        for key, mask in events:
+            if key.fileobj == master:
+                try:
+                    b = master.read(1)
+                except OSError as e:
+                    if e.errno == errno.EIO:
+                        return
+                    raise e
+                sys.stdout.buffer.write(b)
+                sys.stdout.buffer.flush()
+            else:  # key.fileobj == sys.stdin
+                b = sys.stdin.buffer.read(1)
+                master.write(b)
 
 
 def cmd_archinstall(args):
@@ -321,25 +315,29 @@ def cmd_archinstall(args):
     pid, fd = pty.fork()
     if pid == 0:
         os.execvp(qemu_args[0], qemu_args)
-
-    with os.fdopen(fd, 'r+b', buffering=0) as master:
-        try:
-            expect(master, b'Boot Arch Linux')
-            master.write(b'\t console=ttyS0,115200\n')
-            expect(master, b'login: ')
-            master.write(b'root\n')
-            expect(master, b'# ')
-            master.write(b'OLD_PS2="$PS2"; PS2=\n')  # Disable the heredoc> prompt.
-            master.write(b'cat > install.sh << "SCRIPTEOF"\n')
-            master.write(install_script(args).encode())
-            master.write(b'SCRIPTEOF\n')
-            master.write(b'PS2="$OLDPS2"\n')
-            master.write(b'chmod +x ./install.sh && ./install.sh\n')
-            interact(master)
-        except Exception as e:
-            os.kill(pid, signal.SIGKILL)
-            raise e
-    os.waitpid(pid)
+    old = termios.tcgetattr(sys.stdin.fileno())
+    try:
+        tty.setraw(sys.stdin.fileno())
+        with os.fdopen(fd, 'r+b', buffering=0) as master:
+            try:
+                expect(master, b'Boot Arch Linux')
+                master.write(b'\t console=ttyS0,115200\n')
+                expect(master, b'login: ')
+                master.write(b'root\n')
+                expect(master, b'# ')
+                master.write(b'OLD_PS2="$PS2"; PS2=\n')  # Disable the heredoc> prompt.
+                master.write(b'cat > install.sh << "SCRIPTEOF"\n')
+                master.write(install_script(args).encode())
+                master.write(b'SCRIPTEOF\n')
+                master.write(b'PS2="$OLDPS2"\n')
+                master.write(b'chmod +x ./install.sh && ./install.sh\n')
+                interact(master)
+            except Exception as e:
+                os.kill(pid, signal.SIGKILL)
+                raise e
+    finally:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, old)
+    os.waitpid(pid, 0)
 
 
 def main():
