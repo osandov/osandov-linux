@@ -268,7 +268,7 @@ def interact(master):
                 sys.stdout.buffer.write(b)
                 sys.stdout.buffer.flush()
             else:  # key.fileobj == sys.stdin
-                b = sys.stdin.buffer.read(1)
+                b = os.read(sys.stdin.fileno(), 1)
                 master.write(b)
 
 
@@ -318,6 +318,7 @@ def cmd_archinstall(args):
     old = termios.tcgetattr(sys.stdin.fileno())
     try:
         tty.setraw(sys.stdin.fileno())
+        tty.setraw(fd)
         with os.fdopen(fd, 'r+b', buffering=0) as master:
             try:
                 expect(master, b'Boot Arch Linux')
