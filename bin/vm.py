@@ -346,7 +346,9 @@ def cmd_archinstall(args):
                 master.write(install_script(args, proxy_vars).encode())
                 master.write(b'SCRIPTEOF\r')
                 master.write(b'PS2="$OLDPS2"\r')
-                master.write(b'chmod +x ./install.sh && ./install.sh\r')
+                master.write(b'chmod +x ./install.sh\r')
+                if not args.edit:
+                    master.write(b'./install.sh\r')
                 interact(master)
             except EOFError:
                 pass
@@ -406,6 +408,10 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser_archinstall.add_argument(
         'name', metavar='NAME', help='name of the VM to install')
+    parser_archinstall.add_argument(
+        '--edit', action='store_true',
+        help="don't run the installation script automatically; "
+             "use this if you'd like to edit the script before running it")
     parser_archinstall.add_argument(
         '--root-dev', metavar='DEV', default='/dev/vda',
         help='device to partition for root file system and bootloader')
