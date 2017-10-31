@@ -36,6 +36,7 @@ def cmd_create(args):
     os.chdir(vm_dir)
 
     os.mkdir(args.name)
+    print(f'Creating {args.name!r}, cpu={args.cpu} memory={args.memory}')
     subprocess.run(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
                     f'{args.name}/{args.name}.qcow2', args.size], check=True)
     with open(f'{args.name}/config.py', 'w') as f:
