@@ -8,7 +8,7 @@ KERNELRELEASE="$(uname -r)"
 find /lib/modules -mindepth 1 -maxdepth 1 -type d -empty -delete
 
 # Check if the 9p modules mount is available.
-if ! grep '^modules$' /sys/bus/virtio/drivers/9pnet_virtio/virtio*/mount_tag >/dev/null 2>&1; then
+if ! grep -Fxq modules /sys/bus/virtio/drivers/9pnet_virtio/virtio*/mount_tag 2>/dev/null; then
 	echo "9p modules mount is not available" >&2
 	# Only error out if modules are not already installed,
 	if [ -e "/lib/modules/${KERNELRELEASE}/kernel" ]; then

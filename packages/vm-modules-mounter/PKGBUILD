@@ -11,7 +11,7 @@ install="${pkgname}.install"
 depends=('systemd')
 source=(install.sh vm-modules-mounter.sh vm-modules-mounter.service 10-shutdown.conf)
 sha256sums=('8f68fee82f890f595a72769c2941ba91814ad0b0595ccbbd5b65ad5fe4241ed6'
-            '38708f1978abb0e6349ed70ecf838fedef0807e6754b75fe65095619cf54b971'
+            '28d3d1891f36d495f1ed09c535334c3432d7efa7d1c016a125af08c23f8cce6c'
             '7544d152eb1f202f362e66b3c40619e45f6342f4179d34a3f90226c2181450f5'
             'ba0f5490cafaf6aeb37e0b3fd50c12a6aa963c51954141e29c450933b5f1b468')
 
