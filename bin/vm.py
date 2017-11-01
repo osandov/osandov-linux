@@ -2,6 +2,7 @@
 
 import argparse
 import errno
+import fcntl
 import os
 import os.path
 import pty
@@ -256,51 +257,65 @@ passwd -R /mnt -l root
 
 class MiniExpect:
     def __init__(self, args):
-        self.pid, fd = pty.fork()
+        self.pid, self.master = pty.fork()
         if self.pid == 0:
             os.execvp(args[0], args)
-        tty.setraw(fd)
-        self.master = os.fdopen(fd, 'r+b', buffering=0)
+        tty.setraw(self.master)
+        flags = fcntl.fcntl(self.master, fcntl.F_GETFD)
+        fcntl.fcntl(self.master, fcntl.F_SETFD, flags | os.O_NONBLOCK)
         self._buf = bytearray()
+        self._sel = selectors.DefaultSelector()
+        self._sel.register(self.master, selectors.EVENT_READ)
+        self._sel.register(sys.stdin, selectors.EVENT_READ)
 
     def __enter__(self):
         self.old_attr = termios.tcgetattr(sys.stdin.fileno())
+        self.old_flags = fcntl.fcntl(sys.stdin.fileno(), fcntl.F_GETFD)
+        fcntl.fcntl(sys.stdin.fileno(), fcntl.F_SETFD, self.old_flags | os.O_NONBLOCK)
         tty.setraw(sys.stdin.fileno())
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, self.old_attr)
-        self.master.close()
+        fcntl.fcntl(sys.stdin.fileno(), fcntl.F_SETFD, self.old_flags)
+        os.close(self.master)
         os.waitpid(self.pid, 0)
 
-    def interact(self, expect=None):
-        sel = selectors.DefaultSelector()
-        sel.register(self.master, selectors.EVENT_READ)
-        sel.register(sys.stdin, selectors.EVENT_READ)
-
-        while True:
-            events = sel.select()
+    def interact(self, *, expect=None, write=None, until_eof=False):
+        if write:
+            writebuf = bytearray(write)
+            self._sel.modify(self.master, selectors.EVENT_READ | selectors.EVENT_WRITE)
+        else:
+            writebuf = bytearray()
+            self._sel.modify(self.master, selectors.EVENT_READ)
+        found_expect = not expect
+        while until_eof or writebuf or not found_expect:
+            events = self._sel.select()
             for key, mask in events:
                 if key.fileobj == self.master:
-                    try:
-                        b = self.master.read(1)
-                    except OSError as e:
-                        if e.errno == errno.EIO:
-                            raise EOFError
-                        raise e
-                    sys.stdout.buffer.write(b)
-                    sys.stdout.buffer.flush()
-                    self._buf.extend(b)
-                    if expect is not None and self._buf.endswith(expect):
-                        return
-                    if len(self._buf) >= 8192:
-                        del self._buf[:-4096]
-                else:  # key.fileobj == sys.stdin
-                    b = os.read(sys.stdin.fileno(), 1)
-                    self.master.write(b)
-
-    def write(self, buf):
-        self.master.write(buf)
+                    if mask & selectors.EVENT_READ:
+                        try:
+                            read = os.read(self.master, 4096)
+                        except OSError as e:
+                            if e.errno == errno.EIO:
+                                raise EOFError
+                            raise e
+                        sys.stdout.buffer.write(read)
+                        sys.stdout.buffer.flush()
+                        self._buf.extend(read)
+                        if not found_expect:
+                            found_expect = expect in self._buf
+                        if len(self._buf) >= 8192:
+                            del self._buf[:-4096]
+                    if mask & selectors.EVENT_WRITE:
+                        written = os.write(self.master, writebuf)
+                        del writebuf[:written]
+                        if not writebuf:
+                            self._sel.modify(self.master, selectors.EVENT_READ)
+                else:  # key.fileobj == sys.stdin and mask == selectors.EVENT_READ
+                    read = os.read(sys.stdin.fileno(), 4096)
+                    writebuf.extend(read)
+                    self._sel.modify(self.master, selectors.EVENT_READ | selectors.EVENT_WRITE)
 
 
 def cmd_archinstall(args):
@@ -342,7 +357,7 @@ def cmd_archinstall(args):
         args.iso = download_latest_archiso(mirror)
 
     proxy_vars = ''.join([
-        f'export {name}={os.environ[name]}\n'
+        f'export {name}={os.environ[name]}\r'
         for name in ['http_proxy', 'https_proxy', 'ftp_proxy']
         if name in os.environ])
 
@@ -351,21 +366,21 @@ def cmd_archinstall(args):
 
     with MiniExpect(qemu_args) as proc:
         try:
-            proc.interact(b'Boot Arch Linux')
-            proc.write(b'\t console=ttyS0,115200\r')
-            proc.interact(b'login: ')
-            proc.write(b'root\r')
-            proc.interact(b'# ')
-            proc.write(b'OLD_PS2="$PS2"; PS2=\r')  # Disable the heredoc> prompt.
-            proc.write(proxy_vars.encode())
-            proc.write(b'cat > install.sh << "SCRIPTEOF"\r')
-            proc.write(install_script(args, proxy_vars).encode())
-            proc.write(b'SCRIPTEOF\r')
-            proc.write(b'PS2="$OLDPS2"\r')
-            proc.write(b'chmod +x ./install.sh\r')
+            proc.interact(expect=b'Boot Arch Linux')
+            proc.interact(write=b'\t console=ttyS0,115200\r')
+            proc.interact(expect=b'login: ')
+            proc.interact(write=b'root\r')
+            proc.interact(expect=b'# ')
+            proc.interact(write=b'OLD_PS2="$PS2"; PS2=\r')  # Disable the heredoc> prompt.
+            proc.interact(write=proxy_vars.encode())
+            proc.interact(write=b'cat > install.sh << "SCRIPTEOF"\r')
+            proc.interact(write=install_script(args, proxy_vars).replace('\n', '\r').encode())
+            proc.interact(write=b'SCRIPTEOF\r')
+            proc.interact(write=b'PS2="$OLDPS2"\r')
+            proc.interact(write=b'chmod +x ./install.sh\r')
             if not args.edit:
-                proc.write(b'./install.sh && poweroff\r')
-            proc.interact()
+                proc.interact(write=b'./install.sh && poweroff\r')
+            proc.interact(until_eof=True)
         except EOFError:
             pass
         except Exception as e:
