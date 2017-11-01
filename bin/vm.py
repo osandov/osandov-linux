@@ -252,6 +252,30 @@ useradd -m "${user}" -g users
 echo "${user}:${hostname}" | chpasswd
 echo "${user} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/10-${user}"
 passwd -l root
+
+sudo -u "${user}" bash -s << "SUDOEOF"
+set -eux
+
+# Install pacaur.
+cd /tmp
+curl -O https://aur.archlinux.org/cgit/aur.git/snapshot/cower.tar.gz
+tar -xf cower.tar.gz
+cd cower
+makepkg -si --noconfirm --skippgpcheck
+
+cd /tmp
+curl -O https://aur.archlinux.org/cgit/aur.git/snapshot/pacaur.tar.gz
+tar -xf pacaur.tar.gz
+cd pacaur
+makepkg -si --noconfirm
+
+# Install vm-modules-mounter.
+cd /tmp
+git clone https://github.com/osandov/osandov-linux.git
+cd osandov-linux/packages/vm-modules-mounter
+makepkg -si --noconfirm
+SUDOEOF
+systemctl enable vm-modules-mounter.service
 ARCHCHROOTEOF
 """)
     # TODO: also install vm-modules-mounter
@@ -374,7 +398,11 @@ def cmd_archinstall(args):
             proc.interact(expect=b'login: ')
             proc.interact(write=b'root\r')
             proc.interact(expect=b'# ')
-            proc.interact(write=b'OLD_PS2="$PS2"; PS2=\r')  # Disable the heredoc> prompt.
+            # This grmlzsh feature breaks heredocs containing some commands
+            # (like git).
+            proc.interact(write=b"zstyle ':acceptline:default' nocompwarn true\r")
+            # Disable the heredoc> prompt.
+            proc.interact(write=b'OLD_PS2="$PS2"; PS2=\r')
             proc.interact(write=proxy_vars.encode())
             proc.interact(write=b'cat > install.sh << "INSTALLSHEOF"\r')
             proc.interact(write=install_script(args, proxy_vars).replace('\n', '\r').encode())
