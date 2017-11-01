@@ -139,6 +139,7 @@ def install_script(args, proxy_vars):
 set -ex
 
 root_dev={shlex.quote(args.root_dev)}
+root_part="${{root_dev}}1"
 mkfs_cmd={shlex.quote(args.mkfs_cmd)}
 mirrors=({' '.join(shlex.quote(mirror) for mirror in args.pacman_mirrors)})
 packages=({' '.join(shlex.quote(package) for package in args.packages)})
@@ -147,11 +148,28 @@ locales={shlex.quote('|'.join([re.escape(locale) for locale in args.locales]))}
 timezone={shlex.quote(args.timezone)}
 hostname={shlex.quote(args.hostname)}
 """)
+
+    script.append(r"""
+gateway="$(ip route show default | gawk 'match($0, /^\s*default.*via\s+([0-9.]+)/, a) { print a[1]; exit }')"
+[[ -z $gateway ]] && { echo "Could not find gateway" >&2; exit 1; }
+
+nic="$(ip route show default | gawk 'match($0, /^\s*default.*dev\s+(\S+)/, a) { print a[1]; exit }')"
+[[ -z $nic ]] && { echo "Could not find network interface" >&2; exit 1; }
+
+ip_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*inet\s+([0-9.]+\/[0-9]+)/, a) { print a[1]; exit }')"
+[[ -z $ip_address ]] && { echo "Could not find IP address" >&2; exit 1; }
+
+mac_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*link\/ether\s+([0-9A-Fa-f:]+)/, a) { print a[1]; exit }')"
+[[ -z $mac_address ]] && { echo "Could not find MAC address" >&2; exit 1; }
+
+dns_server="$(gawk 'match($0, /^\s*nameserver\s+([0-9.]+)/, a) {print a[1]; exit}' /etc/resolv.conf)"
+[[ -z $dns_server ]] && { echo "Could not find DNS server" >&2; exit 1; }
+""")
+
     script.append(r"""
 # Prepare storage devices
 wipefs -a "${root_dev}"
 parted "${root_dev}" --align optimal --script mklabel msdos mkpart primary 0% 100%
-root_part="${root_dev}1"
 ${mkfs_cmd} "${root_part}"
 mount "${root_part}" /mnt
 
@@ -209,21 +227,6 @@ arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
 # Configure networking
 echo "${hostname}" > /mnt/etc/hostname
 
-gateway="$(ip route show default | gawk 'match($0, /^\s*default.*via\s+([0-9.]+)/, a) { print a[1]; exit }')"
-[[ -z $gateway ]] && { echo "Could not find gateway" >&2; exit 1; }
-
-nic="$(ip route show default | gawk 'match($0, /^\s*default.*dev\s+(\S+)/, a) { print a[1]; exit }')"
-[[ -z $nic ]] && { echo "Could not find network interface" >&2; exit 1; }
-
-ip_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*inet\s+([0-9.]+\/[0-9]+)/, a) { print a[1]; exit }')"
-[[ -z $ip_address ]] && { echo "Could not find IP address" >&2; exit 1; }
-
-mac_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*link\/ether\s+([0-9A-Fa-f:]+)/, a) { print a[1]; exit }')"
-[[ -z $mac_address ]] && { echo "Could not find MAC address" >&2; exit 1; }
-
-dns_server="$(gawk 'match($0, /^\s*nameserver\s+([0-9.]+)/, a) {print a[1]; exit}' /etc/resolv.conf)"
-[[ -z $dns_server ]] && { echo "Could not find DNS server" >&2; exit 1; }
-
 cat << EOF > /mnt/etc/systemd/network/virtio-net.network
 [Match]
 MACAddress=${mac_address}
@@ -242,8 +245,6 @@ arch-chroot /mnt useradd -m fsgqa
 
 # Finally, set the root password
 echo "root:${hostname}" | arch-chroot /mnt chpasswd
-
-poweroff
 """)
     # TODO: also install vm-modules-mounter
     return ''.join(script)
@@ -348,7 +349,7 @@ def cmd_archinstall(args):
                 master.write(b'PS2="$OLDPS2"\r')
                 master.write(b'chmod +x ./install.sh\r')
                 if not args.edit:
-                    master.write(b'./install.sh\r')
+                    master.write(b'./install.sh && poweroff\r')
                 interact(master)
             except EOFError:
                 pass
