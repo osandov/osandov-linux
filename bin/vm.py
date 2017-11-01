@@ -2,7 +2,6 @@
 
 import argparse
 import errno
-import getpass
 import os
 import os.path
 import pty
@@ -325,11 +324,6 @@ def cmd_archinstall(args):
         mirror = args.pacman_mirrors[0].replace('$repo/os/$arch', 'iso/latest')
         args.iso = download_latest_archiso(mirror)
 
-    if not hasattr(args, 'user'):
-        args.user = getpass.getuser()
-        if args.user == 'root':
-            args.user = 'vm'
-
     proxy_vars = ''.join([
         f'export {name}={os.environ[name]}\n'
         for name in ['http_proxy', 'https_proxy', 'ftp_proxy']
@@ -444,8 +438,7 @@ def main():
         '--hostname', metavar='NAME', default=argparse.SUPPRESS,
         help='hostname to use for the virtual machine (default: sanitized VM name)')
     parser_archinstall.add_argument(
-        '--user', default=argparse.SUPPRESS,
-        help='name of user to set up in the VM (default: name of the current user, or "vm" if running as root)')
+        '--user', default='vmuser', help='name of user to set up in the VM')
     parser_archinstall.add_argument(
         '--iso', metavar='ISO', default=argparse.SUPPRESS,
         help='Arch Linux ISO to use (default: download the latest ISO)')
