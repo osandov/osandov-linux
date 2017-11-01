@@ -133,42 +133,38 @@ def download_latest_archiso(mirror):
 
 
 def install_script(args, proxy_vars):
-    script = []
-    script.append(f"""\
-#!/bin/bash
+    script = [r"""#!/bin/bash
 
-set -ex
-
-root_dev={shlex.quote(args.root_dev)}
-root_part="${{root_dev}}1"
-mkfs_cmd={shlex.quote(args.mkfs_cmd)}
+set -eux
+"""]
+    script.append(f"""
+export root_dev={shlex.quote(args.root_dev)}
+export root_part="${{root_dev}}1"
+export mkfs_cmd={shlex.quote(args.mkfs_cmd)}
+export locale={shlex.quote(args.locales[0])}
+export locales={shlex.quote('|'.join([re.escape(locale) for locale in args.locales]))}
+export timezone={shlex.quote(args.timezone)}
+export hostname={shlex.quote(args.hostname)}
+export user={shlex.quote(args.user)}
 mirrors=({' '.join(shlex.quote(mirror) for mirror in args.pacman_mirrors)})
 packages=({' '.join(shlex.quote(package) for package in args.packages)})
-locale={shlex.quote(args.locales[0])}
-locales={shlex.quote('|'.join([re.escape(locale) for locale in args.locales]))}
-timezone={shlex.quote(args.timezone)}
-hostname={shlex.quote(args.hostname)}
-user={shlex.quote(args.user)}
 """)
-
     script.append(r"""
-gateway="$(ip route show default | gawk 'match($0, /^\s*default.*via\s+([0-9.]+)/, a) { print a[1]; exit }')"
+export gateway="$(ip route show default | gawk 'match($0, /^\s*default.*via\s+([0-9.]+)/, a) { print a[1]; exit }')"
 [[ -z $gateway ]] && { echo "Could not find gateway" >&2; exit 1; }
 
-nic="$(ip route show default | gawk 'match($0, /^\s*default.*dev\s+(\S+)/, a) { print a[1]; exit }')"
+export nic="$(ip route show default | gawk 'match($0, /^\s*default.*dev\s+(\S+)/, a) { print a[1]; exit }')"
 [[ -z $nic ]] && { echo "Could not find network interface" >&2; exit 1; }
 
-ip_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*inet\s+([0-9.]+\/[0-9]+)/, a) { print a[1]; exit }')"
+export ip_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*inet\s+([0-9.]+\/[0-9]+)/, a) { print a[1]; exit }')"
 [[ -z $ip_address ]] && { echo "Could not find IP address" >&2; exit 1; }
 
-mac_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*link\/ether\s+([0-9A-Fa-f:]+)/, a) { print a[1]; exit }')"
+export mac_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*link\/ether\s+([0-9A-Fa-f:]+)/, a) { print a[1]; exit }')"
 [[ -z $mac_address ]] && { echo "Could not find MAC address" >&2; exit 1; }
 
-dns_server="$(gawk 'match($0, /^\s*nameserver\s+([0-9.]+)/, a) {print a[1]; exit}' /etc/resolv.conf)"
+export dns_server="$(gawk 'match($0, /^\s*nameserver\s+([0-9.]+)/, a) {print a[1]; exit}' /etc/resolv.conf)"
 [[ -z $dns_server ]] && { echo "Could not find DNS server" >&2; exit 1; }
-""")
 
-    script.append(r"""
 # Prepare storage devices
 wipefs -a "${root_dev}"
 parted "${root_dev}" --align optimal --script mklabel msdos mkpart primary 0% 100%
@@ -190,26 +186,33 @@ done
 pacstrap /mnt "${packages[@]}"
 genfstab -U /mnt >> /mnt/etc/fstab
 cp /etc/pacman.d/gnupg/dirmngr.conf /mnt/etc/pacman.d/gnupg/dirmngr.conf
+
+# arch-chroot bind mounts over /etc/resolv.conf, so we have to do this from
+# outside of the chroot.
+ln -sf /run/systemd/resolve/resolv.conf /mnt/etc/resolv.conf
+
+arch-chroot /mnt bash -s << "ARCHCHROOTEOF"
+set -eux
 """)
     if proxy_vars:
         script.append(f"""
 # Configure proxy
-cat << "EOF" > /mnt/etc/profile.d/proxy.sh
+cat << "EOF" > /etc/profile.d/proxy.sh
 {proxy_vars}EOF
 """)
     script.append(r"""
 # Configure locale
-sed -r -i "s/^#(${locales}) /\\1 /" /mnt/etc/locale.gen
-echo "LANG=${locale}" > /mnt/etc/locale.conf
-arch-chroot /mnt locale-gen
+sed -r -i "s/^#(${locales}) /\\1 /" /etc/locale.gen
+echo "LANG=${locale}" > /etc/locale.conf
+locale-gen
 
 # Configure time
-ln -sf /usr/share/zoneinfo/"${timezone}" /mnt/etc/localtime
-arch-chroot /mnt hwclock --systohc --utc
+ln -sf /usr/share/zoneinfo/"${timezone}" /etc/localtime
+hwclock --systohc --utc
 
 # Install bootloader
-arch-chroot /mnt grub-install --target=i386-pc "${root_dev}"
-cat << "EOF" > /mnt/etc/default/grub
+grub-install --target=i386-pc "${root_dev}"
+cat << "EOF" > /etc/default/grub
 GRUB_DEFAULT=0
 GRUB_TIMEOUT=5
 GRUB_DISTRIBUTOR="Arch"
@@ -224,12 +227,12 @@ GRUB_CMDLINE_LINUX_DEFAULT=""
 GRUB_CMDLINE_LINUX="console=ttyS0,115200"
 GRUB_DISABLE_RECOVERY=true
 EOF
-arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
+grub-mkconfig -o /boot/grub/grub.cfg
 
 # Configure networking
-echo "${hostname}" > /mnt/etc/hostname
+echo "${hostname}" > /etc/hostname
 
-cat << EOF > /mnt/etc/systemd/network/virtio-net.network
+cat << EOF > /etc/systemd/network/virtio-net.network
 [Match]
 MACAddress=${mac_address}
 
@@ -238,18 +241,18 @@ Address=${ip_address}
 Gateway=${gateway}
 DNS=${dns_server}
 EOF
-ln -sf /run/systemd/resolve/resolv.conf /mnt/etc/resolv.conf
-arch-chroot /mnt systemctl enable systemd-networkd.service systemd-resolved.service sshd.service
+systemctl enable systemd-networkd.service systemd-resolved.service sshd.service
 
 # Configure miscellaneous settings
-echo "kernel.sysrq = 1" > /mnt/etc/sysctl.d/50-sysrq.conf
-useradd -R /mnt -m fsgqa
+echo "kernel.sysrq = 1" > /etc/sysctl.d/50-sysrq.conf
+useradd -m fsgqa
 
 # Set up the new user account and disable root login.
-useradd -R /mnt -m "${user}" -g users
-echo "${user}:${hostname}" | chpasswd -R /mnt
-echo "${user} ALL=(ALL) NOPASSWD: ALL" > "/mnt/etc/sudoers.d/10-${user}"
-passwd -R /mnt -l root
+useradd -m "${user}" -g users
+echo "${user}:${hostname}" | chpasswd
+echo "${user} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/10-${user}"
+passwd -l root
+ARCHCHROOTEOF
 """)
     # TODO: also install vm-modules-mounter
     return ''.join(script)
@@ -373,9 +376,9 @@ def cmd_archinstall(args):
             proc.interact(expect=b'# ')
             proc.interact(write=b'OLD_PS2="$PS2"; PS2=\r')  # Disable the heredoc> prompt.
             proc.interact(write=proxy_vars.encode())
-            proc.interact(write=b'cat > install.sh << "SCRIPTEOF"\r')
+            proc.interact(write=b'cat > install.sh << "INSTALLSHEOF"\r')
             proc.interact(write=install_script(args, proxy_vars).replace('\n', '\r').encode())
-            proc.interact(write=b'SCRIPTEOF\r')
+            proc.interact(write=b'INSTALLSHEOF\r')
             proc.interact(write=b'PS2="$OLDPS2"\r')
             proc.interact(write=b'chmod +x ./install.sh\r')
             if not args.edit:
