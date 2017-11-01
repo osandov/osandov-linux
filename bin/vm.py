@@ -2,6 +2,7 @@
 
 import argparse
 import errno
+import getpass
 import os
 import os.path
 import pty
@@ -147,6 +148,7 @@ locale={shlex.quote(args.locales[0])}
 locales={shlex.quote('|'.join([re.escape(locale) for locale in args.locales]))}
 timezone={shlex.quote(args.timezone)}
 hostname={shlex.quote(args.hostname)}
+user={shlex.quote(args.user)}
 """)
 
     script.append(r"""
@@ -241,10 +243,13 @@ arch-chroot /mnt systemctl enable systemd-networkd.service systemd-resolved.serv
 
 # Configure miscellaneous settings
 echo "kernel.sysrq = 1" > /mnt/etc/sysctl.d/50-sysrq.conf
-arch-chroot /mnt useradd -m fsgqa
+useradd -R /mnt -m fsgqa
 
-# Finally, set the root password
-echo "root:${hostname}" | arch-chroot /mnt chpasswd
+# Set up the new user account and disable root login.
+useradd -R /mnt -m "${user}" -g users
+echo "${user}:${hostname}" | chpasswd -R /mnt
+echo "${user} ALL=(ALL) NOPASSWD: ALL" > "/mnt/etc/sudoers.d/10-${user}"
+passwd -R /mnt -l root
 """)
     # TODO: also install vm-modules-mounter
     return ''.join(script)
@@ -290,6 +295,7 @@ def cmd_archinstall(args):
         'grub',
         'openssh',
         'rsync',
+        'sudo',
 
         # Development
         'asciidoc',
@@ -318,6 +324,11 @@ def cmd_archinstall(args):
     if not hasattr(args, 'iso'):
         mirror = args.pacman_mirrors[0].replace('$repo/os/$arch', 'iso/latest')
         args.iso = download_latest_archiso(mirror)
+
+    if not hasattr(args, 'user'):
+        args.user = getpass.getuser()
+        if args.user == 'root':
+            args.user = 'vm'
 
     proxy_vars = ''.join([
         f'export {name}={os.environ[name]}\n'
@@ -432,6 +443,9 @@ def main():
     parser_archinstall.add_argument(
         '--hostname', metavar='NAME', default=argparse.SUPPRESS,
         help='hostname to use for the virtual machine (default: sanitized VM name)')
+    parser_archinstall.add_argument(
+        '--user', default=argparse.SUPPRESS,
+        help='name of user to set up in the VM (default: name of the current user, or "vm" if running as root)')
     parser_archinstall.add_argument(
         '--iso', metavar='ISO', default=argparse.SUPPRESS,
         help='Arch Linux ISO to use (default: download the latest ISO)')
