@@ -254,36 +254,53 @@ passwd -R /mnt -l root
     return ''.join(script)
 
 
-def interact(master, expect=None):
-    sel = selectors.DefaultSelector()
-    sel.register(master, selectors.EVENT_READ)
-    sel.register(sys.stdin, selectors.EVENT_READ)
+class MiniExpect:
+    def __init__(self, args):
+        self.pid, fd = pty.fork()
+        if self.pid == 0:
+            os.execvp(args[0], args)
+        tty.setraw(fd)
+        self.master = os.fdopen(fd, 'r+b', buffering=0)
+        self._buf = bytearray()
 
-    if expect is not None:
-        buf = bytearray()
+    def __enter__(self):
+        self.old_attr = termios.tcgetattr(sys.stdin.fileno())
+        tty.setraw(sys.stdin.fileno())
+        return self
 
-    while True:
-        events = sel.select()
-        for key, mask in events:
-            if key.fileobj == master:
-                try:
-                    b = master.read(1)
-                except OSError as e:
-                    if e.errno == errno.EIO:
-                        if expect is not None:
+    def __exit__(self, exc_type, exc_value, traceback):
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, self.old_attr)
+        self.master.close()
+        os.waitpid(self.pid, 0)
+
+    def interact(self, expect=None):
+        sel = selectors.DefaultSelector()
+        sel.register(self.master, selectors.EVENT_READ)
+        sel.register(sys.stdin, selectors.EVENT_READ)
+
+        while True:
+            events = sel.select()
+            for key, mask in events:
+                if key.fileobj == self.master:
+                    try:
+                        b = self.master.read(1)
+                    except OSError as e:
+                        if e.errno == errno.EIO:
                             raise EOFError
-                        else:
-                            return
-                    raise e
-                sys.stdout.buffer.write(b)
-                sys.stdout.buffer.flush()
-                if expect is not None:
-                    buf.extend(b)
-                    if buf.endswith(expect):
+                        raise e
+                    sys.stdout.buffer.write(b)
+                    sys.stdout.buffer.flush()
+                    self._buf.extend(b)
+                    if expect is not None and self._buf.endswith(expect):
                         return
-            else:  # key.fileobj == sys.stdin
-                b = os.read(sys.stdin.fileno(), 1)
-                master.write(b)
+                    if len(self._buf) >= 8192:
+                        del self._buf[:-4096]
+                else:  # key.fileobj == sys.stdin
+                    b = os.read(sys.stdin.fileno(), 1)
+                    self.master.write(b)
+
+    def write(self, buf):
+        self.master.write(buf)
 
 
 def cmd_archinstall(args):
@@ -332,38 +349,28 @@ def cmd_archinstall(args):
     os.chdir(os.path.expanduser('~/linux/vm'))
     qemu_args = get_qemu_args(args) + ['-boot', 'd', '-no-reboot', '-cdrom', args.iso]
 
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.execvp(qemu_args[0], qemu_args)
-    old = termios.tcgetattr(sys.stdin.fileno())
-    try:
-        tty.setraw(sys.stdin.fileno())
-        tty.setraw(fd)
-        with os.fdopen(fd, 'r+b', buffering=0) as master:
-            try:
-                interact(master, b'Boot Arch Linux')
-                master.write(b'\t console=ttyS0,115200\r')
-                interact(master, b'login: ')
-                master.write(b'root\r')
-                interact(master, b'# ')
-                master.write(b'OLD_PS2="$PS2"; PS2=\r')  # Disable the heredoc> prompt.
-                master.write(proxy_vars.encode())
-                master.write(b'cat > install.sh << "SCRIPTEOF"\r')
-                master.write(install_script(args, proxy_vars).encode())
-                master.write(b'SCRIPTEOF\r')
-                master.write(b'PS2="$OLDPS2"\r')
-                master.write(b'chmod +x ./install.sh\r')
-                if not args.edit:
-                    master.write(b'./install.sh && poweroff\r')
-                interact(master)
-            except EOFError:
-                pass
-            except Exception as e:
-                os.kill(pid, signal.SIGKILL)
-                raise e
-    finally:
-        termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, old)
-    os.waitpid(pid, 0)
+    with MiniExpect(qemu_args) as proc:
+        try:
+            proc.interact(b'Boot Arch Linux')
+            proc.write(b'\t console=ttyS0,115200\r')
+            proc.interact(b'login: ')
+            proc.write(b'root\r')
+            proc.interact(b'# ')
+            proc.write(b'OLD_PS2="$PS2"; PS2=\r')  # Disable the heredoc> prompt.
+            proc.write(proxy_vars.encode())
+            proc.write(b'cat > install.sh << "SCRIPTEOF"\r')
+            proc.write(install_script(args, proxy_vars).encode())
+            proc.write(b'SCRIPTEOF\r')
+            proc.write(b'PS2="$OLDPS2"\r')
+            proc.write(b'chmod +x ./install.sh\r')
+            if not args.edit:
+                proc.write(b'./install.sh && poweroff\r')
+            proc.interact()
+        except EOFError:
+            pass
+        except Exception as e:
+            os.kill(proc.pid, signal.SIGKILL)
+            raise e
 
 
 def main():
