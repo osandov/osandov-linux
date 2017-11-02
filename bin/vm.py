@@ -468,7 +468,7 @@ def main():
     parser_archinstall.add_argument(
         'name', metavar='NAME', help='name of the VM to install')
     parser_archinstall.add_argument(
-        '--edit', action='store_true',
+        '-e', '--edit', action='store_true',
         help="don't run the installation script automatically; "
              "use this if you'd like to edit the script before running it")
     parser_archinstall.add_argument(
