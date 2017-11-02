@@ -278,7 +278,6 @@ SUDOEOF
 systemctl enable vm-modules-mounter.service
 ARCHCHROOTEOF
 """)
-    # TODO: also install vm-modules-mounter
     return ''.join(script)
 
 
