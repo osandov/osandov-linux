@@ -203,6 +203,7 @@ set -eux
 # Configure proxy
 cat << "EOF" > /etc/profile.d/proxy.sh
 {proxy_vars}EOF
+chmod +x /etc/profile.d/proxy.sh
 """)
     script.append(r"""
 # Configure locale
@@ -255,9 +256,10 @@ useradd -m fsgqa
 useradd -m "${user}" -g users
 echo "${user}:${hostname}" | chpasswd
 echo "${user} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/10-${user}"
+echo 'Defaults env_keep += "http_proxy https_proxy ftp_proxy"' > /etc/sudoers.d/10-keep-proxy
 passwd -l root
 
-sudo -u "${user}" bash -s << "SUDOEOF"
+sudo -u "${user}" bash -l << "SUDOEOF"
 set -eux
 
 # Install pacaur.
