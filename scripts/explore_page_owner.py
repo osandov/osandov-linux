@@ -23,23 +23,26 @@ def sort_stack_traces(file):
     stack_traces = Counter()
     current_stack_trace = []
     current_size = None
+
+    def add_stack_trace():
+        if 'init_page_owner' not in current_stack_trace:
+            stack_traces[tuple(reversed(current_stack_trace))] += current_size
+        current_stack_trace.clear()
+
     for line in file:
         if line.startswith('PFN'):
             continue
         match = re.match(r'Page allocated via order (\d+)', line)
         if match:
             if current_stack_trace:
-                stack_traces[tuple(reversed(current_stack_trace))] += current_size
-                current_stack_trace.clear()
-                current_size = None
+                add_stack_trace()
             current_size = 4096 << int(match.group(1))
         elif line != '\n':
             match = re.match(r'\s*([^+\s]+)', line)
             if match.group(1) != '__set_page_owner':
                 current_stack_trace.append(match.group(1))
     if current_stack_trace:
-        stack_traces[tuple(reversed(current_stack_trace))] += current_size
-        current_stack_trace.clear()
+        add_stack_trace()
     return stack_traces
 
 
