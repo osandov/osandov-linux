@@ -63,7 +63,7 @@ def explore(stack_traces, level, name=None):
                 assert total_size > callee_size
                 print(f' ({humanize(total_size - callee_size)} directly)')
         for i, (func, size) in enumerate(sorted_callees, 1):
-            print(f'{i}: {func} allocated {humanize(size)}')
+            print(f'{i}: {func} allocated {humanize(size)} ({100 * (size / total_size):.1f}%)')
 
         response = input('> ')
         if not response:
