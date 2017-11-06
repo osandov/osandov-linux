@@ -46,7 +46,12 @@ def sort_stack_traces(file):
     return stack_traces
 
 
+prev_response = None
+
+
 def explore(stack_traces, level, name=None):
+    global prev_response
+
     callees = Counter()
     for stack_trace, size in stack_traces.items():
         if level < len(stack_trace):
@@ -70,8 +75,12 @@ def explore(stack_traces, level, name=None):
 
         response = input('> ')
         if not response:
-            continue
-        elif response in {'exit', 'q', 'quit'}:
+            if prev_response:
+                response = prev_response
+            else:
+                continue
+        prev_response = response
+        if response in {'exit', 'q', 'quit'}:
             sys.exit()
         elif response == 'up':
             if name is not None:
