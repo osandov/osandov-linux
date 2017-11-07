@@ -53,17 +53,8 @@ system.
 QEMU's `-kernel` option boots the VM straight into a kernel image. This,
 however, doesn't handle kernel modules. For that, `vm.py` provides a VirtFS to
 the guest containing the modules, which the guest mounts while booting
-(implemented in `packages/vm-modules-mounter`).
+(implemented in `packages/vm-modules-mounter`). `vm.py archinstall`
+automatically installs `vm-modules-mounter`.
 
-To use `vm-modules-mounter`, run
-
-```
-$ cd packages/vm-modules-mounter
-$ makepkg
-```
-
-Then, copy the package to the VM and install it with `pacman -U`. (This will
-likely be automated by `archinstall` in the future.)
-
-Now you can boot into kernels with `vm.py run -k`. Note that there are a few
-required kernel configuration options; see `configs/qemu.fragment`.
+Note that this setup requires a few kernel configuration options; see
+`configs/qemu.fragment`.
