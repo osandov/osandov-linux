@@ -41,7 +41,10 @@ VM with a kernel from the host machine.
 automatically downloads the latest Arch Linux ISO and runs an automated setup
 process. If there is an error during this process, you will be dropped into a
 shell on the VM. If this happens, you can edit `install.sh` on the VM and try
-again manually (but please also open an issue on GitHub so I can fix it).
+again manually (but please also open an issue on GitHub so I can fix it). If
+the installation process succeeds, the VM will power off, after which you can
+restart it with `vm.py run`. The default username is `vmuser`, and the default
+password is the hostname.
 
 ### Running Custom Kernel Builds
 
