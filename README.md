@@ -44,7 +44,8 @@ shell on the VM. If this happens, you can edit `install.sh` on the VM and try
 again manually (but please also open an issue on GitHub so I can fix it). If
 the installation process succeeds, the VM will power off, after which you can
 restart it with `vm.py run`. The default username is `vmuser`, and the default
-password is the hostname.
+password is the hostname of the virtual machine (which is shown at the login
+prompt).
 
 ### Running Custom Kernel Builds
 
