@@ -77,7 +77,10 @@ def get_qemu_args(args):
 
     # Command-line arguments.
     if hasattr(args, 'kernel'):
-        build_path = os.path.join(os.path.expanduser('~/linux/builds/'), args.kernel)
+        if os.path.isabs(args.kernel):
+            build_path = args.kernel
+        else:
+            build_path = os.path.join(os.path.expanduser('~/linux/builds/'), args.kernel)
         image_name = subprocess.check_output(
             ['make', '-s', 'image_name'], cwd=build_path,
             universal_newlines=True).strip()
@@ -455,7 +458,8 @@ def main():
         'name', metavar='NAME', help='name of the VM to run')
     parser_run.add_argument(
         '-k', '--kernel', default=argparse.SUPPRESS,
-        help='kernel in ~/linux/builds to run')
+        help='directory containing kernel build to run; '
+             'either a path relative to ~/linux/builds or an absolute path')
     parser_run.add_argument(
         '-i', '--initrd', metavar='FILE', default=argparse.SUPPRESS,
         help='file to use as initial ramdisk (only when passing -k)')
