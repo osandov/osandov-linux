@@ -1,16 +1,10 @@
-# QEMU config options needed on all architectures
+# Config options for running QEMU with vm.py
 
+# Paravirt
 CONFIG_HYPERVISOR_GUEST=y
 CONFIG_PARAVIRT=y
 CONFIG_PARAVIRT_SPINLOCKS=y
 CONFIG_KVM_GUEST=y
-
-# For debugging
-CONFIG_DEVKMEM=y
-CONFIG_DEBUG_INFO=y
-CONFIG_DEBUG_INFO_SPLIT=y
-CONFIG_DEBUG_INFO_DWARF4=y
-CONFIG_DEBUG_LIST=y
 
 # Needed to boot
 CONFIG_BLK_DEV_INITRD=y
@@ -28,15 +22,17 @@ CONFIG_9P_FS_SECURITY=y
 CONFIG_NET_9P_VIRTIO=y
 CONFIG_NET_9P=y
 
-# Compressing modules justs wastes time
-CONFIG_MODULE_COMPRESS=n
-
-# Extra virtio stuff
+# Extra virtio drivers
 CONFIG_SCSI_VIRTIO=m
 CONFIG_VIRTIO_BALLOON=m
 CONFIG_VIRTIO_INPUT=m
 CONFIG_VIRTIO_NET=m
 
-# Devices for testing
-CONFIG_MEGARAID_SAS=m
-CONFIG_SCSI_DEBUG=m
+# Compressing modules justs wastes time
+CONFIG_MODULE_COMPRESS=n
+
+# Debug info
+CONFIG_DEBUG_INFO=y
+# Split debug info links faster
+CONFIG_DEBUG_INFO_SPLIT=y
+CONFIG_DEBUG_INFO_DWARF4=y

@@ -1,0 +1,7 @@
+# Config options needed for running all blktests
+
+CONFIG_BLK_DEV_NULL_BLK=m
+CONFIG_SCSI_DEBUG=m
+
+# Not used directly for blktests, but a good test device with QEMU emulation
+CONFIG_MEGARAID_SAS=m
