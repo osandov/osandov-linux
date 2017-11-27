@@ -262,10 +262,13 @@ echo "${user} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/10-${user}"
 echo 'Defaults env_keep += "http_proxy https_proxy ftp_proxy"' > /etc/sudoers.d/10-keep-proxy
 passwd -l root
 
-sudo -u "${user}" bash -l << "SUDOEOF"
-set -eux
+# Install vm-modules-mounter.
+curl -o /etc/systemd/system/vm-modules-mounter.service https://raw.githubusercontent.com/osandov/osandov-linux/master/scripts/vm-modules-mounter.service
+systemctl enable vm-modules-mounter.service
 
 # Install pacaur.
+sudo -u "${user}" bash -l << "SUDOEOF"
+set -eux
 cd /tmp
 curl -O https://aur.archlinux.org/cgit/aur.git/snapshot/cower.tar.gz
 tar -xf cower.tar.gz
@@ -277,14 +280,7 @@ curl -O https://aur.archlinux.org/cgit/aur.git/snapshot/pacaur.tar.gz
 tar -xf pacaur.tar.gz
 cd pacaur
 makepkg -si --noconfirm
-
-# Install vm-modules-mounter.
-cd /tmp
-git clone https://github.com/osandov/osandov-linux.git
-cd osandov-linux/packages/vm-modules-mounter
-makepkg -si --noconfirm
 SUDOEOF
-systemctl enable vm-modules-mounter.service
 ARCHCHROOTEOF
 """)
     return ''.join(script)

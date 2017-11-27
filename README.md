@@ -59,7 +59,8 @@ however, doesn't handle kernel modules. For that, `vm.py` provides a VirtFS to
 the guest containing the modules, which the guest mounts while booting (see
 `scripts/vm-modules-mounter.service`). `vm.py archinstall` automatically
 installs `vm-modules-mounter`. You can install it manually by copying
-`vm-modules-mounter.service` to `/etc/systemd/system`.
+`vm-modules-mounter.service` to `/etc/systemd/system` and running `systemctl
+enable vm-modules-mounter.service`.
 
 Note that this setup requires a few kernel configuration options; see
 `configs/qemu.fragment`.
