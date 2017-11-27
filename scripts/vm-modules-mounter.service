@@ -1,0 +1,28 @@
+[Unit]
+Description=Mount kernel modules
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=local-fs-pre.target systemd-modules-load.service systemd-udevd.service kmod-static-nodes.service umount.target
+Conflicts=umount.target
+RefuseManualStop=true
+ConditionPathExists=!/lib/modules/%v/kernel
+
+[Install]
+WantedBy=local-fs-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Mount with x-initrd.mount so that systemd will ignore these mounts, because
+# we want to unmount them ourselves.
+ExecStart=/bin/mount -t tmpfs -o mode=755,strictatime,x-mount.mkdir,x-initrd.mount tmpfs /lib/modules/%v
+ExecStart=/bin/mount -t 9p -o trans=virtio,ro,x-mount.mkdir,x-initrd.mount modules /lib/modules/%v/build
+ExecStart=/bin/ln -s build/modules.order /lib/modules/%v/modules.order
+ExecStart=/bin/ln -s build/modules.builtin /lib/modules/%v/modules.builtin
+ExecStart=/bin/ln -s build /lib/modules/%v/kernel
+ExecStart=/bin/depmod %v
+# Lazy unmount to deal with stuff like udevd which keeps the mount busy.
+ExecStopPost=/bin/sh -c 'if mountpoint -q /lib/modules/%v/build; then umount -l /lib/modules/%v/build; fi'
+ExecStopPost=/bin/sh -c 'if mountpoint -q /lib/modules/%v; then umount -l /lib/modules/%v; fi'
+ExecStopPost=/usr/bin/find /lib/modules -mindepth 1 -maxdepth 1 -type d -empty -delete
+ExecReload=/bin/depmod %v

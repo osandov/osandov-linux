@@ -56,9 +56,10 @@ system.
 
 QEMU's `-kernel` option boots the VM straight into a kernel image. This,
 however, doesn't handle kernel modules. For that, `vm.py` provides a VirtFS to
-the guest containing the modules, which the guest mounts while booting
-(implemented in `packages/vm-modules-mounter`). `vm.py archinstall`
-automatically installs `vm-modules-mounter`.
+the guest containing the modules, which the guest mounts while booting (see
+`scripts/vm-modules-mounter.service`). `vm.py archinstall` automatically
+installs `vm-modules-mounter`. You can install it manually by copying
+`vm-modules-mounter.service` to `/etc/systemd/system`.
 
 Note that this setup requires a few kernel configuration options; see
 `configs/qemu.fragment`.
