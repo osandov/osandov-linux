@@ -335,10 +335,7 @@ class MiniExpect:
                         sys.stdout.buffer.flush()
                         self._buf.extend(read)
                         if not found_expect:
-                            if isinstance(expect, bytes):
-                                found_expect = expect in self._buf
-                            else:
-                                found_expect = expect.search(self._buf) is not None
+                            found_expect = expect in self._buf
                         if len(self._buf) >= 8192:
                             del self._buf[:-4096]
                     if mask & selectors.EVENT_WRITE:
@@ -400,7 +397,7 @@ def cmd_archinstall(args):
 
     with MiniExpect(qemu_args) as proc:
         try:
-            proc.interact(expect=re.compile(b'B+o+o+t+ +A+r+c+h+ +L+i+n+u+x+'))
+            proc.interact(expect=b'Boot Arch Linux')
             proc.interact(write=b'\t console=ttyS0,115200\r')
             proc.interact(expect=b'login: ')
             proc.interact(write=b'root\r')
