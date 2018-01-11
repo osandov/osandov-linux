@@ -44,7 +44,7 @@ def cmd_create(args):
         f.write(f"""\
 qemu_options = [
     '-nodefaults',
-    '-nographic',
+    '-display', 'none',
     '-serial', 'mon:stdio',
 
     '-cpu', 'kvm64',
