@@ -16,7 +16,8 @@
 #define le64_to_cpu __le64_to_cpu
 
 void print_block_group(uint64_t flags, uint64_t offset, uint64_t length,
-		       uint64_t used, uint64_t max_free_extent)
+		       uint64_t used, uint64_t num_extents,
+		       uint64_t max_free_extent)
 {
 	double percent_used = 100.0 * used / length;
 
@@ -37,8 +38,9 @@ void print_block_group(uint64_t flags, uint64_t offset, uint64_t length,
 		printf("0x%" PRIx64, (uint64_t)(flags & BTRFS_BLOCK_GROUP_TYPE_MASK));
 		break;
 	}
-	printf("\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%.2f\n",
-	       offset, length, used, max_free_extent, percent_used);
+	printf("\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%.2f\n",
+	       offset, length, used, num_extents, max_free_extent,
+	       percent_used);
 }
 
 int main(int argc, char **argv)
@@ -64,6 +66,7 @@ int main(int argc, char **argv)
 	uint64_t block_group_offset;
 	uint64_t block_group_length;
 	uint64_t block_group_used;
+	uint64_t num_extents = 0;
 	uint64_t max_free_extent = 0;
 	uint64_t free_extent_offset = 0;
 	int ret;
@@ -86,7 +89,7 @@ int main(int argc, char **argv)
 		goto err;
 	}
 
-	printf("TYPE\tOFFSET\tLENGTH\tUSED\tMAX EXTENT\tUSE%%\n");
+	printf("TYPE\tOFFSET\tLENGTH\tUSED\tNUM EXTENTS\tMAX EXTENT\tUSE%%\n");
 	for (;;) {
 		const struct btrfs_ioctl_search_header *header;
 
@@ -133,7 +136,9 @@ int main(int argc, char **argv)
 							  block_group_offset,
 							  block_group_length,
 							  block_group_used,
+							  num_extents,
 							  max_free_extent);
+					num_extents = 0;
 					max_free_extent = 0;
 					have_block_group = false;
 				} else {
@@ -143,6 +148,7 @@ int main(int argc, char **argv)
 				}
 			}
 
+			num_extents++;
 			free_extent_offset = extent_offset + extent_length;
 		} else if (header->type == BTRFS_BLOCK_GROUP_ITEM_KEY) {
 			const struct btrfs_block_group_item *block_group = (void *)(header + 1);
@@ -157,7 +163,9 @@ int main(int argc, char **argv)
 						  block_group_offset,
 						  block_group_length,
 						  block_group_used,
+						  num_extents,
 						  max_free_extent);
+				num_extents = 0;
 				max_free_extent = 0;
 			}
 
@@ -200,6 +208,7 @@ int main(int argc, char **argv)
 				  block_group_offset,
 				  block_group_length,
 				  block_group_used,
+				  num_extents,
 				  max_free_extent);
 	}
 
