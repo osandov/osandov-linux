@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -14,6 +15,32 @@
 #define le16_to_cpu __le16_to_cpu
 #define le32_to_cpu __le32_to_cpu
 #define le64_to_cpu __le64_to_cpu
+
+static const char *progname = "btrfs_dump_block_groups";
+
+static bool human_readable = false;
+
+void print_number(uint64_t number)
+{
+	static const char *suffixes[] = {"", "k", "M", "G", "T", "P", "E", "Z"};
+	static const size_t num_suffixes = sizeof(suffixes) / sizeof(suffixes[0]);
+
+	if (human_readable) {
+		uint64_t fraction = 0;
+		size_t i;
+
+		for (i = 0; i < num_suffixes; i++) {
+			if (number < 1024)
+				break;
+			fraction = number % 1024;
+			number /= 1024;
+		}
+
+		printf("%g%s", (double)number + fraction / 1024.0, suffixes[i]);
+	} else {
+		printf("%" PRIu64, number);
+	}
+}
 
 void print_block_group(uint64_t flags, uint64_t offset, uint64_t length,
 		       uint64_t used, uint64_t num_extents,
@@ -38,9 +65,29 @@ void print_block_group(uint64_t flags, uint64_t offset, uint64_t length,
 		printf("0x%" PRIx64, (uint64_t)(flags & BTRFS_BLOCK_GROUP_TYPE_MASK));
 		break;
 	}
-	printf("\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%.2f\n",
-	       offset, length, used, num_extents, max_free_extent,
-	       percent_used);
+	printf("\t%" PRIu64, offset);
+	printf("\t");
+	print_number(length);
+	printf("\t");
+	print_number(used);
+	printf("\t%.2f", percent_used);
+	printf("\t");
+	print_number(max_free_extent);
+	printf("\t%" PRIu64 "\n", num_extents);
+}
+
+static void usage(bool error)
+{
+	fprintf(error ? stderr : stdout,
+		"usage: %s [OPTION]... PATH\n"
+		"\n"
+		"List free space in Btrfs block groups"
+		"\n"
+		"Options:\n"
+		"  -h, --human-readable   print sizes in powers of 1024 (e.g., 1023M)\n"
+		"  --help                 display this help message and exit\n",
+		progname);
+	exit(error ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 
 int main(int argc, char **argv)
@@ -59,6 +106,10 @@ int main(int argc, char **argv)
 			.nr_items = 0,
 		},
 	};
+	struct option long_options[] = {
+		{"human-readable", no_argument, NULL, 'h'},
+		{"help", no_argument, NULL, 'H'},
+	};
 	size_t items_pos = 0, buf_off = 0;
 	bool have_block_group = false;
 	struct btrfs_ioctl_fs_info_args fs_info;
@@ -72,12 +123,29 @@ int main(int argc, char **argv)
 	int ret;
 	int fd;
 
-	if (argc != 2) {
-		fprintf(stderr, "usage: %s PATH\n", argv[0]);
-		return EXIT_FAILURE;
-	}
+	progname = argv[0];
 
-	fd = open(argv[1], O_RDONLY);
+	for (;;) {
+		int c;
+
+		c = getopt_long(argc, argv, "h", long_options, NULL);
+		if (c == -1)
+			break;
+
+		switch (c) {
+		case 'h':
+			human_readable = true;
+			break;
+		case 'H':
+			usage(false);
+		default:
+			usage(true);
+		}
+	}
+	if (optind != argc - 1)
+		usage(true);
+
+	fd = open(argv[optind], O_RDONLY);
 	if (fd == -1) {
 		perror("open");
 		return EXIT_FAILURE;
@@ -89,7 +157,7 @@ int main(int argc, char **argv)
 		goto err;
 	}
 
-	printf("TYPE\tOFFSET\tLENGTH\tUSED\tNUM EXTENTS\tMAX EXTENT\tUSE%%\n");
+	printf("TYPE\tOFFSET\tLENGTH\tUSED\tUSE%%\tMAX EXTENT\tNUM EXTENTS\n");
 	for (;;) {
 		const struct btrfs_ioctl_search_header *header;
 
