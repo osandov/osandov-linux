@@ -175,7 +175,8 @@ int main(int argc, char **argv)
 			block_group_used = le64_to_cpu(block_group->used);
 
 			have_block_group = true;
-			free_extent_offset = block_group_offset;
+			if (block_group_offset > free_extent_offset)
+				free_extent_offset = block_group_offset;
 		}
 
 
