@@ -81,6 +81,11 @@ def get_qemu_args(args):
             build_path = args.kernel
         else:
             build_path = os.path.join(os.path.expanduser('~/linux/builds/'), args.kernel)
+        newconfig = subprocess.check_output(
+            ['make', '-s', 'listnewconfig'], cwd=build_path,
+            universal_newlines=True).strip()
+        if newconfig:
+            sys.exit('Kernel build .config is not up to date; cannot determine image name')
         image_name = subprocess.check_output(
             ['make', '-s', 'image_name'], cwd=build_path,
             universal_newlines=True).strip()
