@@ -133,7 +133,7 @@ def download_latest_archiso(mirror):
         if not prompt_yes_no(f'Download latest Arch Linux ISO ({latest}) to ~/linux/vm/iso?'):
             sys.exit('Use --iso if you have a previously downloaded ISO you want to use')
         os.makedirs(iso_dir, exist_ok=True)
-        subprocess.run(['curl', '-C', '-', '-f', '-o', iso_path + '.part', mirror + '/' + latest],
+        subprocess.run(['curl', '-L', '-C', '-', '-f', '-o', iso_path + '.part', mirror + '/' + latest],
                        check=True)
         # TODO: check checksum
         os.rename(iso_path + '.part', iso_path)
