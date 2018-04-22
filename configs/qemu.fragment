@@ -33,6 +33,4 @@ CONFIG_MODULE_COMPRESS=n
 
 # Debug info
 CONFIG_DEBUG_INFO=y
-# Split debug info links faster
-CONFIG_DEBUG_INFO_SPLIT=y
 CONFIG_DEBUG_INFO_DWARF4=y
