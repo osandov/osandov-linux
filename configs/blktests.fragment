@@ -1,6 +1,9 @@
 # Config options needed for running all blktests
 
 CONFIG_BLK_DEV_NULL_BLK=m
+CONFIG_NVME_FABRICS=m
+CONFIG_NVME_TARGET=m
+CONFIG_NVME_TARGET_LOOP=m
 CONFIG_SCSI_DEBUG=m
 
 # Not used directly for blktests, but a good test device with QEMU emulation
