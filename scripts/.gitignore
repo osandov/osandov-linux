@@ -1,4 +1,5 @@
 /btrfs_dump_block_groups
+/btrfs_extent_tree_du
 /btrfs_ino_lookup
 /my_kdump_load
 /swapme

@@ -20,7 +20,7 @@ static const char *progname = "btrfs_dump_block_groups";
 
 static bool human_readable = false;
 
-void print_number(uint64_t number)
+static void print_number(uint64_t number)
 {
 	static const char *suffixes[] = {"", "k", "M", "G", "T", "P", "E", "Z"};
 	static const size_t num_suffixes = sizeof(suffixes) / sizeof(suffixes[0]);
@@ -42,9 +42,9 @@ void print_number(uint64_t number)
 	}
 }
 
-void print_block_group(uint64_t flags, uint64_t offset, uint64_t length,
-		       uint64_t used, uint64_t num_extents,
-		       uint64_t max_free_extent)
+static void print_block_group(uint64_t flags, uint64_t offset, uint64_t length,
+			      uint64_t used, uint64_t num_extents,
+			      uint64_t max_free_extent)
 {
 	double percent_used = 100.0 * used / length;
 
@@ -182,11 +182,10 @@ int main(int argc, char **argv)
 			uint64_t free_extent;
 
 			extent_offset = header->objectid;
-			if (header->type == BTRFS_EXTENT_ITEM_KEY) {
+			if (header->type == BTRFS_EXTENT_ITEM_KEY)
 				extent_length = header->offset;
-			} else {
+			else
 				extent_length = fs_info.nodesize;
-			}
 
 			if (have_block_group) {
 				/*
