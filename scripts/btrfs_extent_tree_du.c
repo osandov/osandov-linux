@@ -289,10 +289,12 @@ next:
 
 	print_du_hash(du_hash, du_hash_capacity);
 
+	free(du_hash);
 	close(fd);
 	return EXIT_SUCCESS;
 
 err:
+	free(du_hash);
 	close(fd);
 	return EXIT_FAILURE;
 }
