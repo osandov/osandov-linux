@@ -97,10 +97,9 @@ static int read_chunk_map(int fd, struct chunk **chunks, size_t *num_chunks)
 			else
 				new_capacity = 1;
 
-			tmp = reallocarray(*chunks, new_capacity,
-					   sizeof(**chunks));
+			tmp = realloc(*chunks, new_capacity * sizeof(**chunks));
 			if (!tmp) {
-				perror("reallocarray");
+				perror("realloc");
 				return -1;
 			}
 
