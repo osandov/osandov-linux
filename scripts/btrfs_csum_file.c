@@ -136,17 +136,18 @@ next:
 }
 
 static int map_logical_to_physical(struct chunk *chunks, size_t num_chunks,
-				   uint64_t logical, uint64_t *physical)
+				   uint64_t logical, uint64_t *physical,
+				   uint64_t *length)
 {
 	ssize_t i;
 
 	for (i = num_chunks; i >= 0; i--) {
 		uint64_t logical_start = chunks[i].logical;
 		uint64_t logical_end = logical_start + chunks[i].length;
-		uint64_t physical_start = chunks[i].physical;
 
 		if (logical_start <= logical && logical < logical_end) {
-			*physical = logical - logical_start + physical_start;
+			*physical = chunks[i].physical + (logical - logical_start);
+			*length = chunks[i].length - (logical - logical_start);
 			break;
 		}
 	}
@@ -339,6 +340,10 @@ int main(int argc, char **argv)
 
 		for (i = 0; i < fm->fm_mapped_extents; i++) {
 			uint64_t offset, logical, end;
+			uint64_t physical = 0, physical_length = 0;
+			uint64_t extent_offset = 0, extent_logical = 0;
+			uint64_t extent_physical = 0, extent_length = 0;
+			bool printed_extent = false;
 
 			fe = &fm->fm_extents[i];
 
@@ -366,14 +371,26 @@ int main(int argc, char **argv)
 			offset = fe->fe_logical;
 			logical = fe->fe_physical;
 			end = logical + fe->fe_length;
+
 			while (logical < end) {
-				uint64_t physical;
 				uint32_t calculated_csum, disk_csum;
 				ssize_t sret;
 
-				if (map_logical_to_physical(chunks, num_chunks,
-							    logical, &physical) == -1)
-					goto out;
+				if (!physical_length) {
+					if (map_logical_to_physical(chunks,
+								    num_chunks,
+								    logical,
+								    &physical,
+								    &physical_length) == -1)
+						goto out;
+					extent_offset = offset;
+					extent_logical = logical;
+					extent_physical = physical;
+					extent_length = end - logical;
+					if (physical_length < extent_length)
+						extent_length = physical_length;
+					printed_extent = false;
+				}
 
 				sret = pread(devfd, buf, sectorsize, physical);
 				if (sret == -1) {
@@ -391,12 +408,22 @@ int main(int argc, char **argv)
 					goto out;
 
 				if (calculated_csum != disk_csum) {
-					printf("offset %" PRIu64 " logical %" PRIu64 " physical %" PRIu64 " calculated csum 0x%08" PRIx32 " disk csum 0x%08" PRIx32 "\n",
+					if (!printed_extent) {
+						printf("extent offset %" PRIu64 " logical %" PRIu64 " physical %" PRIu64 " length %" PRIu64 " has csum errors\n",
+						       extent_offset,
+						       extent_logical,
+						       extent_physical,
+						       extent_length);
+						printed_extent = true;
+					}
+					printf("sector offset %" PRIu64 " logical %" PRIu64 " physical %" PRIu64 " calculated csum 0x%08" PRIx32 " != disk csum 0x%08" PRIx32 "\n",
 					       offset, logical, physical, calculated_csum, disk_csum);
 				}
 
 				offset += sectorsize;
 				logical += sectorsize;
+				physical += sectorsize;
+				physical_length -= sectorsize;
 			}
 		}
 
