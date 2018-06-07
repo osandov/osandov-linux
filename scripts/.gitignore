@@ -1,3 +1,4 @@
+/btrfs_csum_file
 /btrfs_dump_block_groups
 /btrfs_extent_tree_du
 /btrfs_ino_lookup
