@@ -4,3 +4,4 @@
 /btrfs_ino_lookup
 /my_kdump_load
 /swapme
+/time_disk_read

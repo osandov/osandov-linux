@@ -3,7 +3,8 @@ all: btrfs_csum_file \
 	btrfs_extent_tree_du \
 	btrfs_ino_lookup \
 	my_kdump_load \
-	swapme
+	swapme \
+	time_disk_read
 
 %: %.c
 	$(CC) -Wall -O2 -o $@ $<
