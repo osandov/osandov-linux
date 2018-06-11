@@ -1,5 +1,6 @@
 # Config options needed for running all blktests
 
+CONFIG_BLK_DEV_NBD=m
 CONFIG_BLK_DEV_NULL_BLK=m
 CONFIG_BLK_DEV_SR=m
 CONFIG_CDROM=m
