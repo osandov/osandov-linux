@@ -225,12 +225,18 @@ static int find_csum(int fd, uint64_t offset, uint32_t sectorsize,
 static void usage(bool error)
 {
 	fprintf(error ? stderr : stdout,
-		"usage: %s [OPTION]... PATH DEV\n"
+		"usage: %s [OPTION]... PATH DEV [OFFSET [LENGTH]]\n"
 		"\n"
-		"Check the checksums on a Btrfs file from userspace"
+		"Check the checksums on a Btrfs file from userspace\n"
 		"\n"
+		"Arguments:\n"
+		"  PATH              file to checksum\n"
+		"  DEV               block device containing filesystem\n"
+		"  OFFSET, LENGTH    if given, only check extents overlapping this range\n"
 		"Options:\n"
-		"  -h, --help             display this help message and exit\n",
+		"  -v, --verbose    print more information, namely, the checksum of each\n"
+		"                   corrupted disk block\n"
+		"  -h, --help       display this help message and exit\n",
 		progname);
 	exit(error ? EXIT_FAILURE : EXIT_SUCCESS);
 }
@@ -238,8 +244,11 @@ static void usage(bool error)
 int main(int argc, char **argv)
 {
 	struct option long_options[] = {
+		{"verbose", no_argument, NULL, 'v'},
 		{"help", no_argument, NULL, 'h'},
 	};
+	bool verbose = false;
+	uint64_t check_offset, check_length;
 	int fd, devfd;
 	struct chunk *chunks = NULL;
 	size_t num_chunks;
@@ -258,27 +267,30 @@ int main(int argc, char **argv)
 	for (;;) {
 		int c;
 
-		c = getopt_long(argc, argv, "h", long_options, NULL);
+		c = getopt_long(argc, argv, "vh", long_options, NULL);
 		if (c == -1)
 			break;
 
 		switch (c) {
+		case 'v':
+			verbose = true;
+			break;
 		case 'h':
 			usage(false);
 		default:
 			usage(true);
 		}
 	}
-	if (optind != argc - 2)
+	if (argc - optind != 2 && argc - optind != 3 && argc - optind != 4)
 		usage(true);
 
-	fd = open(argv[1], O_RDONLY);
+	fd = open(argv[optind], O_RDONLY);
 	if (fd == -1) {
 		perror(argv[1]);
 		return EXIT_FAILURE;
 	}
 
-	devfd = open(argv[2], O_RDONLY | O_DIRECT);
+	devfd = open(argv[optind + 1], O_RDONLY | O_DIRECT);
 	if (devfd == -1) {
 		perror(argv[2]);
 		close(fd);
@@ -290,6 +302,15 @@ int main(int argc, char **argv)
 		goto out;
 	}
 	sectorsize = sfs.f_bsize;
+
+	if (argc - optind >= 3)
+		check_offset = strtoull(argv[optind + 2], NULL, 0);
+	else
+		check_offset = 0;
+	if (argc - optind >= 4)
+		check_length = strtoull(argv[optind + 3], NULL, 0);
+	else
+		check_length = sectorsize;
 
 	if (read_chunk_map(fd, &chunks, &num_chunks) == -1)
 		goto out;
@@ -328,7 +349,7 @@ int main(int argc, char **argv)
 		perror("calloc");
 		goto out;
 	}
-	fm->fm_length = (__u64)-1;
+	fm->fm_length = (uint64_t)-1;
 	fm->fm_extent_count = FM_EXTENT_COUNT;
 
 	for (;;) {
@@ -343,9 +364,14 @@ int main(int argc, char **argv)
 			uint64_t physical = 0, physical_length = 0;
 			uint64_t extent_offset = 0, extent_logical = 0;
 			uint64_t extent_physical = 0, extent_length = 0;
+			uint64_t uncorrupted_offset = 0, corrupted_offset = 0;
 			bool printed_extent = false;
 
 			fe = &fm->fm_extents[i];
+
+			if (fe->fe_logical + fe->fe_length <= check_offset ||
+			    check_offset + check_length <= fe->fe_logical)
+				continue;
 
 			if (fe->fe_flags & FIEMAP_EXTENT_UNKNOWN) {
 				printf("extent %llu location is unknown; skipping\n",
@@ -377,6 +403,15 @@ int main(int argc, char **argv)
 				ssize_t sret;
 
 				if (!physical_length) {
+					if (printed_extent) {
+						if (offset != corrupted_offset)
+							printf("%" PRIu64 " bytes with invalid csums at offset %" PRIu64 "\n",
+							       offset - corrupted_offset, corrupted_offset);
+						if (offset != uncorrupted_offset)
+							printf("%" PRIu64 " bytes with valid csums at offset %" PRIu64 "\n",
+							       offset - uncorrupted_offset, uncorrupted_offset);
+					}
+
 					if (map_logical_to_physical(chunks,
 								    num_chunks,
 								    logical,
@@ -389,6 +424,7 @@ int main(int argc, char **argv)
 					extent_length = end - logical;
 					if (physical_length < extent_length)
 						extent_length = physical_length;
+					uncorrupted_offset = corrupted_offset = offset;
 					printed_extent = false;
 				}
 
@@ -407,23 +443,42 @@ int main(int argc, char **argv)
 					      &disk_csum) == -1)
 					goto out;
 
-				if (calculated_csum != disk_csum) {
+				if (calculated_csum == disk_csum) {
+					if (offset != corrupted_offset)
+						printf("%" PRIu64 " bytes with invalid csums at offset %" PRIu64 "\n",
+						       offset - corrupted_offset, corrupted_offset);
+					corrupted_offset = offset + sectorsize;
+				} else {
 					if (!printed_extent) {
-						printf("extent offset %" PRIu64 " logical %" PRIu64 " physical %" PRIu64 " length %" PRIu64 " has csum errors\n",
+						printf("extent at offset %" PRIu64 " logical %" PRIu64 " physical %" PRIu64 " length %" PRIu64 " has csum errors\n",
 						       extent_offset,
 						       extent_logical,
 						       extent_physical,
 						       extent_length);
 						printed_extent = true;
 					}
-					printf("sector offset %" PRIu64 " logical %" PRIu64 " physical %" PRIu64 " calculated csum 0x%08" PRIx32 " != disk csum 0x%08" PRIx32 "\n",
-					       offset, logical, physical, calculated_csum, disk_csum);
+					if (offset != uncorrupted_offset)
+						printf("%" PRIu64 " bytes with valid csums at offset %" PRIu64 "\n",
+						       offset - uncorrupted_offset, uncorrupted_offset);
+					uncorrupted_offset = offset + sectorsize;
+					if (verbose)
+						printf("block at offset %" PRIu64 " logical %" PRIu64 " physical %" PRIu64 " calculated csum 0x%08" PRIx32 " != disk csum 0x%08" PRIx32 "\n",
+						       offset, logical, physical, calculated_csum, disk_csum);
 				}
 
 				offset += sectorsize;
 				logical += sectorsize;
 				physical += sectorsize;
 				physical_length -= sectorsize;
+			}
+
+			if (printed_extent) {
+				if (offset != corrupted_offset)
+					printf("%" PRIu64 " bytes with invalid csums at offset %" PRIu64 "\n",
+					       offset - corrupted_offset, corrupted_offset);
+				if (offset != uncorrupted_offset)
+					printf("%" PRIu64 " bytes with valid csums at offset %" PRIu64 "\n",
+					       offset - uncorrupted_offset, uncorrupted_offset);
 			}
 		}
 
