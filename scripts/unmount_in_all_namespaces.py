@@ -124,7 +124,7 @@ def main():
                     os.chroot(root)
                     os.chdir('/')
                     for mount in mounts():
-                        if mount.source == args.dev:
+                        if mount.source == args.source:
                             umount(mount.mount_point.encode())
                 except Exception as e:
                     print(e, file=sys.stderr)
