@@ -275,16 +275,10 @@ systemctl enable vm-modules-mounter.service
 sudo -u "${user}" bash -l << "SUDOEOF"
 set -eux
 cd /tmp
-curl -O https://aur.archlinux.org/cgit/aur.git/snapshot/cower.tar.gz
-tar -xf cower.tar.gz
-cd cower
+curl -O https://aur.archlinux.org/cgit/aur.git/snapshot/aurman.tar.gz
+tar -xf aurman.tar.gz
+cd aurman
 makepkg -si --noconfirm --skippgpcheck
-
-cd /tmp
-curl -O https://aur.archlinux.org/cgit/aur.git/snapshot/pacaur.tar.gz
-tar -xf pacaur.tar.gz
-cd pacaur
-makepkg -si --noconfirm
 SUDOEOF
 ARCHCHROOTEOF
 """)
