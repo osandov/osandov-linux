@@ -47,7 +47,7 @@ def find_module_options(modules):
                 if filename == 'Makefile' or filename == 'Kbuild':
                     yield os.path.join(dirpath, filename)
 
-    goal_re = re.compile(r'^obj-\$\(CONFIG_([0-9A-Z_a-z]+)\)\s*(?::=|\+=|=)\s*([^#\n]*)$',
+    goal_re = re.compile(r'^\s*obj-\$\(CONFIG_([0-9A-Z_a-z]+)\)\s*(?::=|\+=|=)\s*([^#\n]*)$',
                          re.MULTILINE)
     objs_re = re.compile(r'(\S+)\.o')
 
