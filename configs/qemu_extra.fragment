@@ -2,5 +2,3 @@
 
 # Low overhead and catches important bugs
 CONFIG_DEBUG_LIST=y
-
-CONFIG_DEVKMEM=y

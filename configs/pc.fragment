@@ -1,0 +1,25 @@
+# Config options for desktops/laptops
+
+# Full disk encryption
+CONFIG_BLK_DEV_DM=m
+CONFIG_DM_CRYPT=m
+CONFIG_MD=y
+
+# VM development
+CONFIG_KVM=m
+
+# External devices
+CONFIG_HID_GENERIC=m
+CONFIG_HID=m
+CONFIG_USB_COMMON=m
+CONFIG_USB_HID=m
+CONFIG_USB=m
+CONFIG_USB_SUPPORT=y
+
+# USB storage
+CONFIG_USB_STORAGE=m
+CONFIG_USB_UAS=m
+
+# USB networking
+CONFIG_USB_NET_DRIVERS=m
+CONFIG_USB_RTL8152=m

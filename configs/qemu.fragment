@@ -30,7 +30,3 @@ CONFIG_VIRTIO_NET=m
 
 # Compressing modules justs wastes time
 CONFIG_MODULE_COMPRESS=n
-
-# Debug info
-CONFIG_DEBUG_INFO=y
-CONFIG_DEBUG_INFO_DWARF4=y
