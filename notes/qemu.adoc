@@ -47,6 +47,31 @@ To forward port 2222 on the host to port 22 on the VM, start QEMU with:
 -netdev user,id=vlan0,hostfwd=tcp::2222-:22 -device virtio-net,netdev=vlan0
 ----
 
+== Storage Devices
+
+NVMe
+
+----
+-device nvme,id=nvme,drive=nvme,serial=1337
+-drive file=VM/nvme.qcow2,id=nvme,if=none,cache=none
+----
+
+SCSI
+
+----
+-device virtio-scsi-pci
+-device scsi-hd,id=scsi,drive=scsi
+-drive file=VM/scsi.qcow2,id=scsi,if=none,cache=none
+----
+
+ATA
+
+----
+-device ahci,id=ahci
+-device ide-drive,drive=ata,bus=ahci.0
+-drive file=VM/ata.qcow2,id=ata,if=none,cache=none
+----
+
 == Accessing the Host's USB Devices
 
 A QEMU guest can access the host's USB devices. QEMU uses libusb to access the USB device node directly.
