@@ -28,5 +28,5 @@ CONFIG_VIRTIO_BALLOON=m
 CONFIG_VIRTIO_INPUT=m
 CONFIG_VIRTIO_NET=m
 
-# Compressing modules justs wastes time
+# Compressing modules just wastes time
 CONFIG_MODULE_COMPRESS=n

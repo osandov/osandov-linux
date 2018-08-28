@@ -35,6 +35,3 @@ CONFIG_SCSI_SRP_ATTRS=m
 CONFIG_TARGET_CORE=m
 CONFIG_TCM_FILEIO=m
 CONFIG_TCM_IBLOCK=m
-
-# Not used directly for blktests, but a good test device with QEMU emulation
-CONFIG_MEGARAID_SAS=m
