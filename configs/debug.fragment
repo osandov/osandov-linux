@@ -1,0 +1,5 @@
+# Debugging config options
+
+CONFIG_DEBUG_ATOMIC_SLEEP=y
+CONFIG_KASAN=y
+CONFIG_PROVE_LOCKING=y
