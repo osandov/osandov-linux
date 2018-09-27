@@ -67,7 +67,9 @@ static void du_hash_really_add(struct du_hash_entry *du_hash,
 			       size_t capacity, uint64_t root,
 			       uint64_t objectid, uint64_t bytes)
 {
-	uint64_t hash = 53 * root + objectid;
+	static const uint32_t golden_ratio32 = UINT32_C(0x61C88647);
+	static const uint64_t golden_ratio64 = UINT64_C(0x61C8864680B583EB);
+	uint32_t hash = (golden_ratio32 * root) ^ (golden_ratio64 * objectid);
 	uint64_t i = hash & (capacity - 1);
 
 	for (;;) {
@@ -100,7 +102,7 @@ static int du_hash_add(struct du_hash_entry **du_hash,
 		if (*capacity)
 			new_capacity = *capacity * 2;
 		else
-			new_capacity = 1;
+			new_capacity = 4096;
 
 		new_du_hash = calloc(new_capacity, sizeof(*new_du_hash));
 		if (!new_du_hash)
