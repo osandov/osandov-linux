@@ -95,6 +95,7 @@ int main(int argc, char **argv)
 			       cachesize > blocksize ? cachesize : blocksize);
 	if (errno) {
 		perror("posix_memalign");
+		buf = NULL;
 		goto out;
 	}
 
