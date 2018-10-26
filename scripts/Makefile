@@ -1,4 +1,5 @@
-all: btrfs_csum_file \
+TARGETS := \
+	btrfs_csum_file \
 	btrfs_dump_block_groups \
 	btrfs_extent_tree_du \
 	btrfs_ino_lookup \
@@ -6,8 +7,15 @@ all: btrfs_csum_file \
 	swapme \
 	time_disk_read
 
+all: $(TARGETS)
+
+clean:
+	rm -f $(TARGETS)
+
 %: %.c
 	$(CC) -Wall -O2 -o $@ $<
 
 btrfs_csum_file: btrfs_csum_file.c
 	$(CC) -g -Wall -O2 -o $@ $< -lbtrfs
+
+.PHONY: all clean
