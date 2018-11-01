@@ -29,7 +29,7 @@ def read_rt_inode(dev, ino, blocks):
         cmd.append('-c')
         cmd.append('p')
     data = bytearray()
-    for line in subprocess.check_output(cmd, text=True).splitlines():
+    for line in subprocess.check_output(cmd, universal_newlines=True).splitlines():
         match = re.match('[0-9a-fA-F]+: ((?: [0-9a-fA-F]{2})+)', line)
         hexdump = match.group(1).replace(' ', '')
         data.extend(bytes.fromhex(hexdump))
@@ -38,7 +38,7 @@ def read_rt_inode(dev, ino, blocks):
 
 def print_rsum(sb, rsum):
     for i, level in enumerate(rsum):
-        print(humanize(sb.blocksize << i), end='\t')
+        print(humanize((sb.blocksize * sb.rextsize) << i), end='\t')
         for n in level:
             if n:
                 print(f'{n:4}', end=' ')
@@ -87,8 +87,9 @@ def main():
         parser.error('at least one of --dump-summary or --verify-summary is required')
 
     cmd = ['xfs_db', '-r', args.dev, '-c', 'sb', '-c', 'p']
-    sb_output = subprocess.check_output(cmd, text=True)
-    fields = ['blocksize', 'rbmblocks', 'rbmino', 'rextents', 'rextslog', 'rsumino']
+    sb_output = subprocess.check_output(cmd, universal_newlines=True)
+    fields = ['blocksize', 'rbmblocks', 'rbmino', 'rextents', 'rextsize',
+              'rextslog', 'rsumino']
     regex = r'^(' + '|'.join(fields) + r') = (.*)$'
     sb = SimpleNamespace()
     for match in re.finditer(regex, sb_output, re.MULTILINE):
