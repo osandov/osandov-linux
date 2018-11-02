@@ -117,8 +117,11 @@ def get_qemu_args(args):
 
 def cmd_run(args):
     os.chdir(os.path.expanduser('~/linux/vm'))
-    args = get_qemu_args(args)
-    os.execvp(args[0], args)
+    qemu_args = get_qemu_args(args)
+    if args.dry_run:
+        print(' '.join(shlex.quote(arg) for arg in qemu_args))
+    else:
+        os.execvp(qemu_args[0], qemu_args)
 
 
 def download_latest_archiso(mirror):
@@ -461,6 +464,9 @@ def main():
     parser_run.add_argument(
         '-a', '--append', action='append', default=argparse.SUPPRESS,
         help='append a kernel command line argument (only when passing -k)')
+    parser_run.add_argument(
+        '-n', '--dry-run', action='store_true',
+        help='print QEMU command line instead of running')
     parser_run.add_argument(
         'qemu_options', metavar='QEMU_OPTION', nargs='*',
         help='extra options to pass directly to QEMU')
