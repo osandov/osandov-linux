@@ -1,8 +1,10 @@
 # Config options for desktops/laptops
 
-# Full disk encryption
+# Disk/filesystem encryption
 CONFIG_BLK_DEV_DM=m
 CONFIG_DM_CRYPT=m
+CONFIG_ECRYPT_FS=m
+CONFIG_ECRYPT_FS_MESSAGING=y
 CONFIG_MD=y
 
 # VM development
