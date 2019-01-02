@@ -6,7 +6,7 @@
 # config files.
 
 # Start with a config based on the running system with a few tweaks.
-zgrep -v -E 'CONFIG_(BLK_DEV_NVME|DEFAULT_HOSTNAME|HYPERVISOR_GUEST|LOCALVERSION|NVM|NVME_CORE|USB|VFIO)=' /proc/config.gz > .config
+zgrep -v -E 'CONFIG_(BLK_DEV_NVME|DEFAULT_HOSTNAME|HYPERVISOR_GUEST|LEDS_CLASS|LOCALVERSION|NVM|NVME_CORE|USB|VFIO)=' /proc/config.gz > .config
 cat << EOF >> .config
 CONFIG_LOCALVERSION_AUTO=y
 CONFIG_IKCONFIG=y
