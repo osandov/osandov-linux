@@ -4,6 +4,8 @@
 CONFIG_DEBUG_LIST=y
 
 # Devices with decent QEMU emulation for running, e.g., blktests.
+CONFIG_ATA_PIIX=m
 CONFIG_BLK_DEV_NVME=m
 CONFIG_MEGARAID_SAS=m
+CONFIG_PATA_ACPI=m
 CONFIG_SATA_AHCI=m
