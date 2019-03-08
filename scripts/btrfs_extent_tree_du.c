@@ -47,7 +47,7 @@ static void usage(bool error)
 	fprintf(error ? stderr : stdout,
 		"usage: %s [OPTION]... PATH\n"
 		"\n"
-		"Get Btrfs disk usage by walking the extent tree"
+		"Get Btrfs disk usage by walking the extent tree\n"
 		"\n"
 		"Options:\n"
 		"  -h, --human-readable   print sizes in powers of 1024 (e.g., 1023M)\n"

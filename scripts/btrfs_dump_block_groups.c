@@ -81,7 +81,7 @@ static void usage(bool error)
 	fprintf(error ? stderr : stdout,
 		"usage: %s [OPTION]... PATH\n"
 		"\n"
-		"List free space in Btrfs block groups"
+		"List free space in Btrfs block groups\n"
 		"\n"
 		"Options:\n"
 		"  -h, --human-readable   print sizes in powers of 1024 (e.g., 1023M)\n"
