@@ -2,6 +2,7 @@ TARGETS := \
 	btrfs_csum_file \
 	btrfs_dump_block_groups \
 	btrfs_extent_tree_du \
+	btrfs_map_physical \
 	btrfs_ino_lookup \
 	my_kdump_load \
 	swapme \
