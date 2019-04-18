@@ -63,7 +63,6 @@ struct du_hash_entry {
 	uint64_t root;
 	uint64_t objectid;
 	uint64_t bytes;
-	struct du_hash_entry *next;
 };
 
 static void du_hash_really_add(struct du_hash_entry *du_hash,
