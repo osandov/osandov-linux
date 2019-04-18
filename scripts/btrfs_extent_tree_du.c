@@ -19,6 +19,7 @@
 static const char *progname = "btrfs_extent_tree_du";
 
 static bool human_readable = false;
+static bool root_only = false;
 
 static void print_number(uint64_t number)
 {
@@ -51,6 +52,8 @@ static void usage(bool error)
 		"\n"
 		"Options:\n"
 		"  -h, --human-readable   print sizes in powers of 1024 (e.g., 1023M)\n"
+		"  -r, --root             group only by root (e.g., subvolume), not by objectid\n"
+		"                         (e.g., file)\n"
 		"  --help                 display this help message and exit\n",
 		progname);
 	exit(error ? EXIT_FAILURE : EXIT_SUCCESS);
@@ -136,10 +139,12 @@ static void print_du_hash(struct du_hash_entry *du_hash,
 		struct du_hash_entry *entry = &du_hash[i];
 
 		if (entry->root) {
-			printf("root %" PRIu64 " objectid %" PRIu64 " references ",
-			       entry->root, entry->objectid);
+			printf("root %" PRIu64, entry->root);
+			if (!root_only)
+				printf(" objectid %" PRIu64, entry->objectid);
+			printf(" references ");
 			print_number(entry->bytes);
-			puts("");
+			putc('\n', stdout);
 		}
 	}
 }
@@ -162,6 +167,7 @@ int main(int argc, char **argv)
 	};
 	struct option long_options[] = {
 		{"human-readable", no_argument, NULL, 'h'},
+		{"root", no_argument, NULL, 'r'},
 		{"help", no_argument, NULL, 'H'},
 	};
 	size_t items_pos = 0, buf_off = 0;
@@ -177,13 +183,16 @@ int main(int argc, char **argv)
 	for (;;) {
 		int c;
 
-		c = getopt_long(argc, argv, "h", long_options, NULL);
+		c = getopt_long(argc, argv, "hr", long_options, NULL);
 		if (c == -1)
 			break;
 
 		switch (c) {
 		case 'h':
 			human_readable = true;
+			break;
+		case 'r':
+			root_only = true;
 			break;
 		case 'H':
 			usage(false);
@@ -248,7 +257,10 @@ int main(int argc, char **argv)
 
 				data_ref = (void *)&ref->offset;
 				root = le64_to_cpu(data_ref->root);
-				objectid = le64_to_cpu(data_ref->objectid);
+				if (root_only)
+					objectid = 0;
+				else
+					objectid = le64_to_cpu(data_ref->objectid);
 				ret = du_hash_add(&du_hash, &du_hash_size,
 						  &du_hash_capacity, root,
 						  objectid, header->offset);
