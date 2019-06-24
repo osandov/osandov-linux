@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stddef.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <getopt.h>
@@ -129,6 +130,25 @@ static int du_hash_add(struct du_hash_entry **du_hash,
 	return 0;
 }
 
+static int process_data_ref(const struct btrfs_extent_data_ref *data_ref,
+			    uint64_t bytes, struct du_hash_entry **du_hash,
+			    size_t *du_hash_size, size_t *du_hash_capacity)
+{
+	uint64_t root, objectid;
+	int ret;
+
+	root = le64_to_cpu(data_ref->root);
+	if (root_only)
+		objectid = 0;
+	else
+		objectid = le64_to_cpu(data_ref->objectid);
+	ret = du_hash_add(du_hash, du_hash_size, du_hash_capacity, root,
+			  objectid, bytes);
+	if (ret == -1)
+		fprintf(stderr, "%m\n");
+	return ret;
+}
+
 static void print_du_hash(struct du_hash_entry *du_hash,
 			  size_t capacity)
 {
@@ -216,9 +236,6 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		const struct btrfs_ioctl_search_header *header;
-		const struct btrfs_extent_item *item;
-		const struct btrfs_extent_inline_ref *ref;
-		uint64_t refs, flags;
 
 		if (items_pos >= search.key.nr_items) {
 			search.key.nr_items = 4096;
@@ -234,55 +251,79 @@ int main(int argc, char **argv)
 				break;
 		}
 
-		header = (struct btrfs_ioctl_search_header *)(search.buf + buf_off);
-		if (header->type != BTRFS_EXTENT_ITEM_KEY)
-			goto next;
+		header = (void *)(search.buf + buf_off);
+		buf_off += sizeof(*header);
+		if (header->type == BTRFS_EXTENT_ITEM_KEY) {
+			const struct btrfs_extent_item *item;
+			size_t ref_off;
 
-		item = (void *)(header + 1);
-		refs = le64_to_cpu(item->refs);
-		flags = le64_to_cpu(item->flags);
-		if (!(flags & BTRFS_EXTENT_FLAG_DATA))
-			goto next;
-
-		ref = (void *)(item + 1);
-		while (refs) {
-			if (ref->type == BTRFS_TREE_BLOCK_REF_KEY ||
-			    ref->type == BTRFS_SHARED_BLOCK_REF_KEY) {
-				refs--;
-				ref++;
-			} else if (ref->type == BTRFS_EXTENT_DATA_REF_KEY) {
-				const struct btrfs_extent_data_ref *data_ref;
-				uint64_t root, objectid;
-
-				data_ref = (void *)&ref->offset;
-				root = le64_to_cpu(data_ref->root);
-				if (root_only)
-					objectid = 0;
-				else
-					objectid = le64_to_cpu(data_ref->objectid);
-				ret = du_hash_add(&du_hash, &du_hash_size,
-						  &du_hash_capacity, root,
-						  objectid, header->offset);
-				if (ret == -1)
-					goto err;
-				refs -= le32_to_cpu(data_ref->count);
-				ref = (void *)(data_ref + 1);
-			} else if (ref->type == BTRFS_SHARED_DATA_REF_KEY) {
-				const struct btrfs_shared_data_ref *data_ref;
-
-				data_ref = (void *)(ref + 1);
-				refs -= le32_to_cpu(data_ref->count);
-				ref = (void *)(data_ref + 1);
-			} else {
-				fprintf(stderr, "unknown ref type 0x%x\n",
-					ref->type);
+			if (sizeof(search.buf) - buf_off < sizeof(*item)) {
+				fprintf(stderr,
+					"extent item (%llu, %u, %llu) is truncated\n",
+					header->objectid, header->type,
+					header->offset);
 				goto err;
+			}
+			item = (void *)(search.buf + buf_off);
+			if (!(le64_to_cpu(item->flags) & BTRFS_EXTENT_FLAG_DATA))
+				goto next;
+
+			ref_off = sizeof(*item);
+			while (ref_off < header->len) {
+				const struct btrfs_extent_inline_ref *ref;
+
+				if (header->len - ref_off < sizeof(*ref)) {
+					fprintf(stderr,
+						"inline ref (%llu, %u, %llu) is truncated\n",
+						header->objectid, header->type,
+						header->offset);
+					goto err;
+				}
+				ref = (void *)(search.buf + buf_off + ref_off);
+				if (ref->type == BTRFS_EXTENT_DATA_REF_KEY) {
+					const struct btrfs_extent_data_ref *data_ref;
+
+					ref_off += offsetof(struct btrfs_extent_inline_ref,
+							    offset);
+					if (header->len - ref_off <
+					    sizeof(*data_ref)) {
+						fprintf(stderr,
+							"inline data ref (%llu, %u, %llu) is truncated\n",
+							header->objectid, header->type,
+							header->offset);
+						goto err;
+					}
+					data_ref = (void *)(search.buf +
+							    buf_off + ref_off);
+					ref_off += sizeof(*data_ref);
+					ret = process_data_ref(data_ref,
+							       header->offset,
+							       &du_hash,
+							       &du_hash_size,
+							       &du_hash_capacity);
+					if (ret == -1)
+						goto err;
+				} else {
+					ref_off += sizeof(*ref);
+					if (ref->type == BTRFS_SHARED_DATA_REF_KEY) {
+						ref_off += sizeof(struct btrfs_shared_data_ref);
+					} else if (ref->type != BTRFS_TREE_BLOCK_REF_KEY &&
+						   ref->type != BTRFS_SHARED_BLOCK_REF_KEY) {
+						fprintf(stderr,
+							"(%llu, %u, %llu) has unknown inline ref type 0x%x\n",
+							header->objectid,
+							header->type,
+							header->offset,
+							ref->type);
+						goto err;
+					}
+				}
 			}
 		}
 
 next:
+		buf_off += header->len;
 		items_pos++;
-		buf_off += sizeof(*header) + header->len;
 		search.key.min_objectid = header->objectid;
 		search.key.min_type = header->type;
 		search.key.min_offset = header->offset;
