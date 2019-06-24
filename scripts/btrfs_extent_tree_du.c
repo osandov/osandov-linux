@@ -190,6 +190,7 @@ int main(int argc, char **argv)
 		{"help", no_argument, NULL, 'H'},
 	};
 	size_t items_pos = 0, buf_off = 0;
+	uint64_t prev_objectid = 0, num_bytes = 0;
 	struct btrfs_ioctl_fs_info_args fs_info;
 	struct du_hash_entry *du_hash = NULL;
 	size_t du_hash_size = 0;
@@ -268,6 +269,8 @@ int main(int argc, char **argv)
 			if (!(le64_to_cpu(item->flags) & BTRFS_EXTENT_FLAG_DATA))
 				goto next;
 
+			prev_objectid = header->objectid;
+			num_bytes = header->offset;
 			ref_off = sizeof(*item);
 			while (ref_off < header->len) {
 				const struct btrfs_extent_inline_ref *ref;
@@ -297,7 +300,7 @@ int main(int argc, char **argv)
 							    buf_off + ref_off);
 					ref_off += sizeof(*data_ref);
 					ret = process_data_ref(data_ref,
-							       header->offset,
+							       num_bytes,
 							       &du_hash,
 							       &du_hash_size,
 							       &du_hash_capacity);
@@ -319,6 +322,29 @@ int main(int argc, char **argv)
 					}
 				}
 			}
+		} else if (header->type == BTRFS_EXTENT_DATA_REF_KEY) {
+			const struct btrfs_extent_data_ref *data_ref;
+
+			if (sizeof(search.buf) - buf_off < sizeof(*data_ref)) {
+				fprintf(stderr,
+					"data ref (%llu, %u, %llu) is truncated\n",
+					header->objectid, header->type,
+					header->offset);
+				goto err;
+			}
+			if (header->objectid != prev_objectid) {
+				fprintf(stderr,
+					"found data ref (%llu, %u, %llu) without extent item\n",
+					header->objectid, header->type,
+					header->offset);
+				goto err;
+			}
+			data_ref = (void *)(search.buf + buf_off);
+			ret = process_data_ref(data_ref, num_bytes, &du_hash,
+					       &du_hash_size,
+					       &du_hash_capacity);
+			if (ret == -1)
+				goto err;
 		}
 
 next:
