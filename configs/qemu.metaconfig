@@ -4,6 +4,7 @@
 		"all.fragment",
 		"qemu.fragment",
 		"qemu_extra.fragment",
-		"blktests.fragment"
+		"blktests.fragment",
+		"xfstests.fragment"
 	]
 }
