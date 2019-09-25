@@ -251,10 +251,28 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 			printf("type%u", item->type);
 			break;
 		}
-		if (item->compression)
-			printf(",compressed");
+		switch (item->compression) {
+		case 0:
+			break;
+		case 1:
+			printf(",compression=zlib");
+			break;
+		case 2:
+			printf(",compression=lzo");
+			break;
+		case 3:
+			printf(",compression=zstd");
+			break;
+		default:
+			printf(",compression=%u", item->compression);
+			break;
+		}
 		if (item->encryption)
-			printf(",encrypted");
+			printf(",encryption=%u", item->encryption);
+		if (item->other_encoding) {
+			printf(",other_encoding=%u",
+			       le16_to_cpu(item->other_encoding));
+		}
 
 		if (item->type == BTRFS_FILE_EXTENT_INLINE) {
 			uint64_t len;
