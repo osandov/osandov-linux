@@ -27,6 +27,57 @@ static void usage(bool error)
 		"Map the logical and physical extents of a file on Btrfs\n\n"
 		"Pipe this to `column -ts $'\\t'` for prettier output.\n"
 		"\n"
+		"Btrfs represents a range of data in a file with a \"file extent\". Each\n"
+		"file extent refers to a subset of an \"extent\". Each extent has a\n"
+		"location in the logical address space of the filesystem belonging to a\n"
+		"\"chunk\". Each chunk maps has a profile (i.e., RAID level) and maps to\n"
+		"one or more physical locations, or \"stripes\", on disk. The extent may be\n"
+		"\"encoded\" on disk (currently this means compressed, but in the future it\n"
+		"may also be encrypted).\n"
+		"\n"
+		"An explanation of each printed field and its corresponding on-disk data\n"
+		"structure is provided below:\n"
+		"\n"
+		"FILE OFFSET        Offset in the file where the file extent starts\n"
+		"                   [(struct btrfs_key).offset]\n"
+		"FILE SIZE          Size of the file extent\n"
+		"                   [(struct btrfs_file_extent_item).num_bytes for most\n"
+		"                   extents, (struct btrfs_file_extent_item).ram_bytes\n"
+		"                   for inline extents]\n"
+		"EXTENT OFFSET      Offset from the beginning of the unencoded extent\n"
+		"                   where the file extent starts\n"
+		"                   [(struct btrfs_file_extent_item).offset]\n"
+		"EXTENT TYPE        Type of the extent (inline, preallocated, etc.)\n"
+		"                   [(struct btrfs_file_extent_item).type];\n"
+		"                   how it is encoded\n"
+		"                   [(struct btrfs_file_extent_item){compression,\n"
+		"                   encryption,other_encoding}];\n"
+		"                   and its data profile\n"
+		"                   [(struct btrfs_chunk).type]\n"
+		"LOGICAL SIZE       Size of the unencoded extent\n"
+		"                   [(struct btrfs_file_extent_item).ram_bytes]\n"
+		"LOGICAL OFFSET     Location of the extent in the filesystem's logical\n"
+		"                   address space\n"
+		"                   [(struct btrfs_file_extent_offset).disk_bytenr]\n"
+		"PHYSICAL SIZE      Size of the encoded extent on disk\n"
+		"                   [(struct btrfs_file_extent_offset).disk_num_bytes]\n"
+		"DEVID              ID of the device containing the extent\n"
+		"                   [(struct btrfs_stripe).devid]\n"
+		"PHYSICAL OFFSET    Location of the extent on the device\n"
+		"                   [calculated from (struct btrfs_stripe).offset]\n"
+		"\n"
+		"FILE SIZE is rounded up to the sector size of the filesystem.\n"
+		"\n"
+		"Inline extents are stored with the metadata of the filesystem; this tool\n"
+		"does not have the ability to determine their location.\n"
+		"\n"
+		"Gaps in a file are represented with a hole file extent unless the\n"
+		"filesystem was formatted with the \"no-holes\" option.\n"
+		"\n"
+		"If the file extent was truncated, hole punched, cloned, or deduped,\n"
+		"EXTENT OFFSET may be non-zero and LOGICAL SIZE may be different from\n"
+		"FILE SIZE.\n"
+		"\n"
 		"Options:\n"
 		"  -h, --help   display this help message and exit\n",
 		progname);
@@ -193,7 +244,7 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 	struct stat st;
 	int ret;
 
-	puts("FILE OFFSET\tEXTENT TYPE\tLOGICAL SIZE\tLOGICAL OFFSET\tPHYSICAL SIZE\tDEVID\tPHYSICAL OFFSET");
+	puts("FILE OFFSET\tFILE SIZE\tEXTENT OFFSET\tEXTENT TYPE\tLOGICAL SIZE\tLOGICAL OFFSET\tPHYSICAL SIZE\tDEVID\tPHYSICAL OFFSET");
 
 	ret = fstat(fd, &st);
 	if (ret == -1) {
@@ -212,6 +263,15 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 	for (;;) {
 		const struct btrfs_ioctl_search_header *header;
 		const struct btrfs_file_extent_item *item;
+		uint8_t type;
+		/* Initialize to silence GCC. */
+		uint64_t file_offset = 0;
+		uint64_t file_size = 0;
+		uint64_t extent_offset = 0;
+		uint64_t logical_size = 0;
+		uint64_t logical_offset = 0;
+		uint64_t physical_size = 0;
+		struct chunk *chunk = NULL;
 
 		if (items_pos >= search.key.nr_items) {
 			search.key.nr_items = 4096;
@@ -233,13 +293,50 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 
 		item = (void *)(header + 1);
 
-		printf("%" PRIu64 "\t", (uint64_t)header->offset);
-		switch (item->type) {
+		type = item->type;
+		file_offset = header->offset;
+		if (type == BTRFS_FILE_EXTENT_INLINE) {
+			file_size = logical_size = le64_to_cpu(item->ram_bytes);
+			extent_offset = 0;
+			physical_size = (header->len -
+					 offsetof(struct btrfs_file_extent_item,
+						  disk_bytenr));
+		} else if (type == BTRFS_FILE_EXTENT_REG ||
+			   type == BTRFS_FILE_EXTENT_PREALLOC) {
+			file_size = le64_to_cpu(item->num_bytes);
+			extent_offset = le64_to_cpu(item->offset);
+			logical_size = le64_to_cpu(item->ram_bytes);
+			logical_offset = le64_to_cpu(item->disk_bytenr);
+			physical_size = le64_to_cpu(item->disk_num_bytes);
+			if (logical_offset) {
+				chunk = find_chunk(chunks, num_chunks,
+						   logical_offset);
+				if (!chunk) {
+					printf("\n");
+					fprintf(stderr,
+						"could not find chunk containing %" PRIu64 "\n",
+						logical_offset);
+					return -1;
+				}
+			}
+		}
+
+		printf("%" PRIu64 "\t", file_offset);
+		if (type == BTRFS_FILE_EXTENT_INLINE ||
+		    type == BTRFS_FILE_EXTENT_REG ||
+		    type == BTRFS_FILE_EXTENT_PREALLOC) {
+			printf("%" PRIu64 "\t%" PRIu64 "\t", file_size,
+			       extent_offset);
+		} else {
+			printf("\t\t");
+		}
+
+		switch (type) {
 		case BTRFS_FILE_EXTENT_INLINE:
 			printf("inline");
 			break;
 		case BTRFS_FILE_EXTENT_REG:
-			if (item->disk_bytenr)
+			if (logical_offset)
 				printf("regular");
 			else
 				printf("hole");
@@ -248,7 +345,7 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 			printf("prealloc");
 			break;
 		default:
-			printf("type%u", item->type);
+			printf("type%u", type);
 			break;
 		}
 		switch (item->compression) {
@@ -273,69 +370,80 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 			printf(",other_encoding=%u",
 			       le16_to_cpu(item->other_encoding));
 		}
+		if (chunk) {
+			switch (chunk->type & BTRFS_BLOCK_GROUP_PROFILE_MASK) {
+			case 0:
+				break;
+			case BTRFS_BLOCK_GROUP_RAID0:
+				printf(",raid0");
+				break;
+			case BTRFS_BLOCK_GROUP_RAID1:
+				printf(",raid1");
+				break;
+			case BTRFS_BLOCK_GROUP_DUP:
+				printf(",dup");
+				break;
+			case BTRFS_BLOCK_GROUP_RAID10:
+				printf(",raid10");
+				break;
+			case BTRFS_BLOCK_GROUP_RAID5:
+				printf(",raid5");
+				break;
+			case BTRFS_BLOCK_GROUP_RAID6:
+				printf(",raid6");
+				break;
+			default:
+				printf(",profile%" PRIu64,
+				       (uint64_t)(chunk->type &
+						  BTRFS_BLOCK_GROUP_PROFILE_MASK));
+				break;
+			}
+		}
+		printf("\t");
 
-		if (item->type == BTRFS_FILE_EXTENT_INLINE) {
-			uint64_t len;
+		if (type == BTRFS_FILE_EXTENT_INLINE ||
+		    type == BTRFS_FILE_EXTENT_REG ||
+		    type == BTRFS_FILE_EXTENT_PREALLOC)
+			printf("%" PRIu64 "\t", logical_size);
+		else
+			printf("\t");
 
-			len = (header->len -
-			       offsetof(struct btrfs_file_extent_item,
-					disk_bytenr));
-			printf("\t%" PRIu64 "\t\t%" PRIu64 "\n",
-			       (uint64_t)le64_to_cpu(item->ram_bytes), len);
-		} else if (item->type == BTRFS_FILE_EXTENT_REG ||
-			   item->type == BTRFS_FILE_EXTENT_PREALLOC) {
-			uint64_t disk_bytenr, disk_num_bytes, num_bytes, offset;
-			uint64_t stripe_nr, stripe_offset;
+		if (type == BTRFS_FILE_EXTENT_REG ||
+		    type == BTRFS_FILE_EXTENT_PREALLOC)
+			printf("%" PRIu64 "\t", logical_offset);
+		else
+			printf("\t");
+
+		if (type == BTRFS_FILE_EXTENT_INLINE ||
+		    type == BTRFS_FILE_EXTENT_REG ||
+		    type == BTRFS_FILE_EXTENT_PREALLOC)
+			printf("%" PRIu64 "\t", physical_size);
+		else
+			printf("\t");
+
+		if (chunk) {
+			uint64_t offset, stripe_nr, stripe_offset;
 			size_t stripe_index, num_stripes;
-			struct chunk *chunk;
 			size_t i;
 
-			disk_bytenr = le64_to_cpu(item->disk_bytenr);
-			disk_num_bytes = le64_to_cpu(item->disk_num_bytes);
-			num_bytes = le64_to_cpu(item->num_bytes);
-
-			if (disk_bytenr == 0) {
-				printf("\t%" PRIu64 "\n", num_bytes);
-				goto next;
-			}
-
-			disk_bytenr += le64_to_cpu(item->offset);
-			disk_num_bytes -= le64_to_cpu(item->offset);
-
-			chunk = find_chunk(chunks, num_chunks, disk_bytenr);
-			if (!chunk) {
-				putc('\n', stdout);
-				fprintf(stderr,
-					"could not find chunk containing %" PRIu64 "\n",
-					disk_bytenr);
-				return -1;
-			}
-
-			offset = disk_bytenr - chunk->offset;
+			offset = logical_offset - chunk->offset;
 			stripe_nr = offset / chunk->stripe_len;
 			stripe_offset = offset - stripe_nr * chunk->stripe_len;
 			switch (chunk->type & BTRFS_BLOCK_GROUP_PROFILE_MASK) {
 			case 0:
 			case BTRFS_BLOCK_GROUP_RAID0:
-				if (chunk->type & BTRFS_BLOCK_GROUP_RAID0)
-					printf(",raid0");
 				stripe_index = stripe_nr % chunk->num_stripes;
 				stripe_nr /= chunk->num_stripes;
 				num_stripes = 1;
 				break;
 			case BTRFS_BLOCK_GROUP_RAID1:
 			case BTRFS_BLOCK_GROUP_DUP:
-				if (chunk->type & BTRFS_BLOCK_GROUP_RAID1)
-					printf(",raid1");
-				else
-					printf(",dup");
 				stripe_index = 0;
 				num_stripes = chunk->num_stripes;
 				break;
 			case BTRFS_BLOCK_GROUP_RAID10: {
 				size_t factor;
 
-				printf(",raid10");
 				factor = chunk->num_stripes / chunk->sub_stripes;
 				stripe_index = (stripe_nr % factor *
 						chunk->sub_stripes);
@@ -347,13 +455,10 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 			case BTRFS_BLOCK_GROUP_RAID6: {
 				size_t nr_parity_stripes, nr_data_stripes;
 
-				if (chunk->type & BTRFS_BLOCK_GROUP_RAID6) {
-					printf(",raid6");
+				if (chunk->type & BTRFS_BLOCK_GROUP_RAID6)
 					nr_parity_stripes = 2;
-				} else {
-					printf(",raid5");
+				else
 					nr_parity_stripes = 1;
-				}
 				nr_data_stripes = (chunk->num_stripes -
 						   nr_parity_stripes);
 				stripe_index = stripe_nr % nr_data_stripes;
@@ -364,22 +469,14 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 				break;
 			}
 			default:
-				printf(",profile%" PRIu64,
-				       (uint64_t)(chunk->type &
-						  BTRFS_BLOCK_GROUP_PROFILE_MASK));
 				num_stripes = 0;
 				break;
 			}
 
-			printf("\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64,
-			       num_bytes, disk_bytenr, disk_num_bytes);
-			if (!num_stripes)
-				printf("\n");
-
 			for (i = 0; i < num_stripes; i++) {
 				if (i != 0)
-					printf("\t\t\t\t");
-				printf("\t%" PRIu64 "\t%" PRIu64 "\n",
+					printf("\n\t\t\t\t\t\t\t");
+				printf("%" PRIu64 "\t%" PRIu64,
 				       chunk->stripes[stripe_index].devid,
 				       chunk->stripes[stripe_index].offset +
 				       stripe_nr * chunk->stripe_len +
@@ -387,6 +484,7 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 				stripe_index++;
 			}
 		}
+		printf("\n");
 
 next:
 		items_pos++;
