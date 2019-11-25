@@ -1,8 +1,8 @@
+#include <fcntl.h>
+#include <getopt.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -66,58 +66,61 @@ struct du_hash_entry {
 	uint64_t bytes;
 };
 
-static void du_hash_really_add(struct du_hash_entry *du_hash,
-			       size_t capacity, uint64_t root,
-			       uint64_t objectid, uint64_t bytes)
+static struct du_hash_entry *du_hash_find(struct du_hash_entry *du_hash,
+					  size_t capacity, uint64_t root,
+					  uint64_t objectid)
 {
 	static const uint32_t golden_ratio32 = UINT32_C(0x61C88647);
 	static const uint64_t golden_ratio64 = UINT64_C(0x61C8864680B583EB);
 	uint32_t hash = (golden_ratio32 * root) ^ (golden_ratio64 * objectid);
-	uint64_t i = hash & (capacity - 1);
+	size_t i = hash & (capacity - 1);
 
 	for (;;) {
 		struct du_hash_entry *entry = &du_hash[i];
 
-		if (entry->root == root &&
-		    entry->objectid == objectid) {
-			entry->bytes += bytes;
-			break;
-		} else if (!entry->root) {
-			entry->root = root;
-			entry->objectid = objectid;
-			entry->bytes = bytes;
-			break;
-		} else {
-			i = (i + 1) & (capacity - 1);
-		}
+		if (!entry->root ||
+		    (entry->root == root && entry->objectid == objectid))
+			return entry;
+		i = (i + 1) & (capacity - 1);
 	}
 }
 
-static int du_hash_add(struct du_hash_entry **du_hash,
-		       size_t *size, size_t *capacity,
-		       uint64_t root, uint64_t objectid, uint64_t bytes)
+static int du_hash_add(struct du_hash_entry **du_hash, size_t *size,
+		       size_t *capacity, uint64_t root, uint64_t objectid,
+		       uint64_t bytes)
 {
+	struct du_hash_entry *entry;
+
+	entry = du_hash_find(*du_hash, *capacity, root, objectid);
+	if (entry->root) {
+		entry->bytes += bytes;
+		return 0;
+	}
+
+	entry->root = root;
+	entry->objectid = objectid;
+	entry->bytes = bytes;
+	(*size)++;
+
 	if (*size >= *capacity * 3 / 4) {
 		struct du_hash_entry *new_du_hash;
-		uint64_t new_capacity;
+		uint64_t new_capacity = *capacity * 2;
 		size_t i;
-
-		if (*capacity)
-			new_capacity = *capacity * 2;
-		else
-			new_capacity = 4096;
 
 		new_du_hash = calloc(new_capacity, sizeof(*new_du_hash));
 		if (!new_du_hash)
 			return -1;
 
 		for (i = 0; i < *capacity; i++) {
-			struct du_hash_entry *entry = &(*du_hash)[i];
-
+			entry = &(*du_hash)[i];
 			if (entry->root) {
-				du_hash_really_add(new_du_hash, new_capacity,
-						   entry->root, entry->objectid,
-						   entry->bytes);
+				struct du_hash_entry *new_entry;
+
+				new_entry = du_hash_find(new_du_hash,
+							 new_capacity,
+							 entry->root,
+							 entry->objectid);
+				*new_entry = *entry;
 			}
 		}
 
@@ -125,9 +128,6 @@ static int du_hash_add(struct du_hash_entry **du_hash,
 		*du_hash = new_du_hash;
 		*capacity = new_capacity;
 	}
-
-	du_hash_really_add(*du_hash, *capacity, root, objectid, bytes);
-	(*size)++;
 	return 0;
 }
 
@@ -194,8 +194,8 @@ int main(int argc, char **argv)
 	uint64_t prev_objectid = 0, num_bytes = 0;
 	struct btrfs_ioctl_fs_info_args fs_info;
 	struct du_hash_entry *du_hash = NULL;
-	size_t du_hash_size = 0;
-	size_t du_hash_capacity = 0;
+	size_t du_hash_size;
+	size_t du_hash_capacity;
 	int ret;
 	int fd;
 
@@ -233,6 +233,14 @@ int main(int argc, char **argv)
 	ret = ioctl(fd, BTRFS_IOC_FS_INFO, &fs_info);
 	if (ret == -1) {
 		perror("BTRFS_IOC_FS_INFO");
+		goto err;
+	}
+
+	du_hash_size = 0;
+	du_hash_capacity = 4096;
+	du_hash = calloc(du_hash_capacity, sizeof(*du_hash));
+	if (!du_hash) {
+		perror("calloc");
 		goto err;
 	}
 
