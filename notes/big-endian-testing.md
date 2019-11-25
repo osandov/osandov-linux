@@ -1,5 +1,5 @@
 To run QEMU: Install the qemu-arch-extra package. Download the initrd and
-vmlinux from http://http.us.debian.org/debian/dists/jessie/main/installer-mips/current/images/malta/netboot/,
+vmlinux from http://http.us.debian.org/debian/dists/stable/main/installer-mips/current/images/malta/netboot/,
 then run
 
 ```
