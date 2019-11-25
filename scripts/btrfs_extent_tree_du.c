@@ -121,6 +121,7 @@ static int du_hash_add(struct du_hash_entry **du_hash,
 			}
 		}
 
+		free(*du_hash);
 		*du_hash = new_du_hash;
 		*capacity = new_capacity;
 	}
