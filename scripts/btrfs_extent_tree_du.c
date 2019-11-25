@@ -63,6 +63,7 @@ static void usage(bool error)
 struct du_hash_entry {
 	uint64_t root;
 	uint64_t objectid;
+	uint64_t prev_bytenr;
 	uint64_t bytes;
 };
 
@@ -86,19 +87,23 @@ static struct du_hash_entry *du_hash_find(struct du_hash_entry *du_hash,
 }
 
 static int du_hash_add(struct du_hash_entry **du_hash, size_t *size,
-		       size_t *capacity, uint64_t root, uint64_t objectid,
-		       uint64_t bytes)
+		       size_t *capacity, uint64_t bytenr, uint64_t root,
+		       uint64_t objectid, uint64_t bytes)
 {
 	struct du_hash_entry *entry;
 
 	entry = du_hash_find(*du_hash, *capacity, root, objectid);
 	if (entry->root) {
-		entry->bytes += bytes;
+		if (bytenr != entry->prev_bytenr) {
+			entry->prev_bytenr = bytenr;
+			entry->bytes += bytes;
+		}
 		return 0;
 	}
 
 	entry->root = root;
 	entry->objectid = objectid;
+	entry->prev_bytenr = bytenr;
 	entry->bytes = bytes;
 	(*size)++;
 
@@ -131,7 +136,8 @@ static int du_hash_add(struct du_hash_entry **du_hash, size_t *size,
 	return 0;
 }
 
-static int process_data_ref(const struct btrfs_extent_data_ref *data_ref,
+static int process_data_ref(uint64_t bytenr,
+			    const struct btrfs_extent_data_ref *data_ref,
 			    uint64_t bytes, struct du_hash_entry **du_hash,
 			    size_t *du_hash_size, size_t *du_hash_capacity)
 {
@@ -143,7 +149,7 @@ static int process_data_ref(const struct btrfs_extent_data_ref *data_ref,
 		objectid = 0;
 	else
 		objectid = le64_to_cpu(data_ref->objectid);
-	ret = du_hash_add(du_hash, du_hash_size, du_hash_capacity, root,
+	ret = du_hash_add(du_hash, du_hash_size, du_hash_capacity, bytenr, root,
 			  objectid, bytes);
 	if (ret == -1)
 		fprintf(stderr, "%m\n");
@@ -308,7 +314,8 @@ int main(int argc, char **argv)
 					data_ref = (void *)(search.buf +
 							    buf_off + ref_off);
 					ref_off += sizeof(*data_ref);
-					ret = process_data_ref(data_ref,
+					ret = process_data_ref(header->objectid,
+							       data_ref,
 							       num_bytes,
 							       &du_hash,
 							       &du_hash_size,
@@ -349,7 +356,8 @@ int main(int argc, char **argv)
 				goto err;
 			}
 			data_ref = (void *)(search.buf + buf_off);
-			ret = process_data_ref(data_ref, num_bytes, &du_hash,
+			ret = process_data_ref(header->objectid, data_ref,
+					       num_bytes, &du_hash,
 					       &du_hash_size,
 					       &du_hash_capacity);
 			if (ret == -1)
