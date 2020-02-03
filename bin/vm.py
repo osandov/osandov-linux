@@ -356,14 +356,17 @@ def cmd_archinstall(args):
     args.packages = [
         # Base system
         'base',
-        'base-devel',
         'grub',
+        'linux',
         'openssh',
-        'rsync',
         'sudo',
+
+        # Utilities
+        'rsync',
 
         # Development
         'asciidoc',
+        'base-devel',
         'cscope',
         'gdb',
         'git',
