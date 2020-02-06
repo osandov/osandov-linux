@@ -264,11 +264,21 @@ systemctl enable systemd-networkd.service systemd-resolved.service sshd.service
 echo "kernel.sysrq = 1" > /etc/sysctl.d/50-sysrq.conf
 useradd -m fsgqa
 
-# Set up the new user account and disable root login.
+# Set up the new user account.
 useradd -m "${user}" -g users
 echo "${user}:${hostname}" | chpasswd
 echo "${user} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/10-${user}"
 echo 'Defaults env_keep += "http_proxy https_proxy ftp_proxy"' > /etc/sudoers.d/10-keep-proxy
+
+# Enable autologin on the console for the new user.
+mkdir -p /etc/systemd/system/serial-getty@ttyS0.service.d
+cat << EOF > /etc/systemd/system/serial-getty@ttyS0.service.d/autologin.conf
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $(systemd-escape "$user") -o '-p -f -- \\\\u' --keep-baud 115200,38400,9600 %I \$TERM
+EOF
+
+# Disable root login.
 passwd -l root
 
 # Install vm-modules-mounter.
