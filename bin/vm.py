@@ -268,8 +268,19 @@ useradd -m fsgqa
 # Set up the new user account.
 useradd -m "${user}" -g users
 echo "${user}:${hostname}" | chpasswd
+
+# Allow the new user to run sudo without a password.
 echo "${user} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/10-${user}"
 echo 'Defaults env_keep += "http_proxy https_proxy ftp_proxy"' > /etc/sudoers.d/10-keep-proxy
+
+# Allow the new user to run Polkit actions without sudo.
+cat << EOF > "/etc/polkit-1/rules.d/10-${user}.rules"
+polkit.addRule(function(action, subject) {
+    if (subject.user == "${user}") {
+        return polkit.Result.YES;
+    }
+});
+EOF
 
 # Enable autologin on the console for the new user.
 mkdir -p /etc/systemd/system/serial-getty@ttyS0.service.d
@@ -370,6 +381,7 @@ def cmd_archinstall(args):
         'grub',
         'linux',
         'openssh',
+        'polkit',
         'sudo',
 
         # Utilities
