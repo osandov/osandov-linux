@@ -71,18 +71,27 @@ kernel_cmdline = [
 """)
 
 
-def get_qemu_args(args):
+def get_build_path(args, config):
+    kernel = getattr(args, 'kernel', None)
+    if kernel is None:
+        return None
+    if '/' not in kernel:
+        builds_dir = config.get('Paths', 'Builds', fallback=None)
+        if builds_dir is not None:
+            build_path = os.path.join(builds_dir, kernel)
+            if os.path.exists(build_path):
+                return build_path
+    return os.path.abspath(kernel)
+
+
+def get_qemu_args(args, build_path=None):
     config = runpy.run_path(os.path.join(args.name, 'config.py'))
 
     qemu_options = ['qemu-system-x86_64']
     qemu_options.extend(config.get('qemu_options', []))
 
     # Command-line arguments.
-    if hasattr(args, 'kernel'):
-        if os.path.isabs(args.kernel):
-            build_path = args.kernel
-        else:
-            build_path = os.path.join(os.path.expanduser('~/linux/builds/'), args.kernel)
+    if build_path is not None:
         newconfig = subprocess.check_output(
             ['make', '-s', 'listnewconfig'], cwd=build_path,
             universal_newlines=True).strip()
@@ -118,8 +127,9 @@ def get_qemu_args(args):
 
 
 def cmd_run(args, config):
+    build_path = get_build_path(args, config)
     os.chdir(config['Paths']['VMs'])
-    qemu_args = get_qemu_args(args)
+    qemu_args = get_qemu_args(args, build_path)
     if args.dry_run:
         print(' '.join(shlex.quote(arg) for arg in qemu_args))
     else:
@@ -484,7 +494,9 @@ def main():
     parser_run.add_argument(
         '-k', '--kernel', default=argparse.SUPPRESS,
         help='directory containing kernel build to run; '
-             'either a path relative to ~/linux/builds or an absolute path')
+             'either a directory in the builds directory, '
+             'an absolute path, '
+             'or a path relative to the current directory')
     parser_run.add_argument(
         '-i', '--initrd', metavar='FILE', default=argparse.SUPPRESS,
         help='file to use as initial ramdisk (only when passing -k)')

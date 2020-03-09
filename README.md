@@ -55,6 +55,8 @@ prompt).
 [Paths]
 # Top-level VM directory. Defaults to "~/vms".
 VMs=~/vms
+# Directory to look in for `vm.py run -k`. Unset by default.
+Builds=~/builds
 ```
 
 #### Running Custom Kernel Builds
