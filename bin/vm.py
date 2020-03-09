@@ -61,6 +61,7 @@ qemu_options = [
     '-device', 'virtio-net,netdev=vlan0',
 
     '-drive', 'file={args.name}/{args.name}.qcow2,index=0,media=disk,if=virtio,cache=none',
+    '-device', 'virtio-blk-pci,drive=vda,bootindex=1',
 ]
 
 kernel_cmdline = [
