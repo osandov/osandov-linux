@@ -23,12 +23,12 @@ super fast edit-compile-test cycle.
 `vm.py` is my VM management script. It fills a role similar to that of
 something like libvirt but is much simpler.
 
-VMs live in `~/linux/vm`. Each VM has its own directory containing all of its
-disk images and its configuration file.
+Each VM has its own directory under a top-level VM directory containing all of
+its disk images and its configuration file.
 
-`vm.py create` creates a new VM under `~/linux/vm`. A few basic configuration
-options (CPUs, memory, disk size) can be given. The new VM only has a
-virtio-net NIC, a (blank) virtio-blk root disk, and a serial console.
+`vm.py create` creates a new VM under the top-level VM directory. A few basic
+configuration options (CPUs, memory, disk size) can be given. The new VM only
+has a virtio-net NIC, a (blank) virtio-blk root disk, and a serial console.
 
 The configuration file for each VM is named `config.py`. It's a Python script
 which must define a `qemu_options` list and `kernel_cmdline` list.
@@ -47,7 +47,17 @@ restart it with `vm.py run`. The default username is `vmuser`, and the default
 password is the hostname of the virtual machine (which is shown at the login
 prompt).
 
-### Running Custom Kernel Builds
+#### Configuration
+
+`vm.py` may be configured in `~/.config/vmpy.conf`:
+
+```ini
+[Paths]
+# Top-level VM directory. Defaults to "~/vms".
+VMs=~/vms
+```
+
+#### Running Custom Kernel Builds
 
 Running a custom kernel build on a VM usually requires installing that kernel
 on the VM. This is wasteful and slow. Instead, I use a combination of QEMU's

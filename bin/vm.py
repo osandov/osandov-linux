@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import configparser
 import errno
 import fcntl
 import os
@@ -31,10 +32,9 @@ def prompt_yes_no(prompt, default=True):
         return default
 
 
-def cmd_create(args):
-    vm_dir = os.path.expanduser('~/linux/vm')
-    os.makedirs(vm_dir, exist_ok=True)
-    os.chdir(vm_dir)
+def cmd_create(args, config):
+    os.makedirs(config['Paths']['VMs'], exist_ok=True)
+    os.chdir(config['Paths']['VMs'])
 
     os.mkdir(args.name)
     print(f'Creating {args.name!r}, cpu={args.cpu} memory={args.memory}')
@@ -117,8 +117,8 @@ def get_qemu_args(args):
     return qemu_options
 
 
-def cmd_run(args):
-    os.chdir(os.path.expanduser('~/linux/vm'))
+def cmd_run(args, config):
+    os.chdir(config['Paths']['VMs'])
     qemu_args = get_qemu_args(args)
     if args.dry_run:
         print(' '.join(shlex.quote(arg) for arg in qemu_args))
@@ -131,11 +131,11 @@ def download_latest_archiso(mirror):
         latest = re.search(r'archlinux-\d{4}\.\d{2}\.\d{2}-x86_64\.iso',
                            url.read().decode()).group()
 
-    iso_dir = os.path.expanduser('~/linux/vm/iso')
+    iso_dir = os.path.join(config['Paths']['VMs'], 'iso')
     iso_path = os.path.join(iso_dir, latest)
 
     if not os.path.exists(iso_path):
-        if not prompt_yes_no(f'Download latest Arch Linux ISO ({latest}) to ~/linux/vm/iso?'):
+        if not prompt_yes_no(f'Download latest Arch Linux ISO ({latest})?'):
             sys.exit('Use --iso if you have a previously downloaded ISO you want to use')
         os.makedirs(iso_dir, exist_ok=True)
         subprocess.run(['curl', '-L', '-C', '-', '-f', '-o', iso_path + '.part', mirror + '/' + latest],
@@ -374,7 +374,7 @@ class MiniExpect:
                     self._sel.modify(self.master, selectors.EVENT_READ | selectors.EVENT_WRITE)
 
 
-def cmd_archinstall(args):
+def cmd_archinstall(args, config):
     args.packages = [
         # Base system
         'base',
@@ -421,7 +421,7 @@ def cmd_archinstall(args):
         for name in ['http_proxy', 'https_proxy', 'ftp_proxy']
         if name in os.environ])
 
-    os.chdir(os.path.expanduser('~/linux/vm'))
+    os.chdir(config['Paths']['VMs'])
     qemu_args = get_qemu_args(args) + ['-boot', 'd', '-no-reboot', '-cdrom', args.iso]
 
     with MiniExpect(qemu_args) as proc:
@@ -534,8 +534,18 @@ def main():
         help='Arch Linux ISO to use (default: download the latest ISO)')
     parser_archinstall.set_defaults(func=cmd_archinstall)
 
+    config = configparser.ConfigParser()
+    config['Paths'] = {'VMs': '~/vms'}
+    config_home = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
+    config.read([os.path.join(config_home, 'vmpy.conf')])
+    for key, value in config['Paths'].items():
+        value = os.path.expanduser(value)
+        if not os.path.isabs(value):
+            sys.exit(f'{key} must be absolute path')
+        config['Paths'][key] = value
+
     args = parser.parse_args()
-    args.func(args)
+    args.func(args, config)
 
 
 if __name__ == '__main__':
