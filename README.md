@@ -75,4 +75,47 @@ installs `vm-modules-mounter`. You can install it manually by copying
 enable vm-modules-mounter.service`.
 
 Note that this setup requires a few kernel configuration options; see
-`configs/qemu.fragment`.
+[`configs/vmpy.fragment`](configs/vmpy.fragment).
+
+## Kconfig Setup
+
+I keep my kernel build configuration files in the [`configs`](configs)
+directory. Rather than keeping full, generated config files, which are noisy
+and hard to manage, I keep configuration "fragments" with only the
+configuration options I care about and use [`kconfig.py`](bin/kconfig.py) to
+merge them.
+
+`kconfig.py` also augments configuration files with an `include` command that
+reads another configuration file and inserts it into the current file verbatim.
+For example, suppose we have the following files:
+
+`file1.config`:
+```
+CONFIG_FOO=y
+CONFIG_BAR=m
+
+include "file3.config"
+
+CONFIG_BAZ=y
+```
+
+`file2.config`:
+```
+CONFIG_QUX=m
+```
+
+`file3.config`:
+```
+CONFIG_FOO=m
+CONFIG_BAZ=m
+CONFIG_QUX=y
+```
+
+`kconfig.py file1.config file2.config` would produce a configuration file with
+`CONFIG_FOO=m`, `CONFIG_BAR=m`, `CONFIG_BAZ=y`, and `CONFIG_QUX=m`.
+
+Included filenames are interpreted relative to the current file.
+
+Finally, `kconfig.py` checks the generated configuration file to make sure that
+all options were set as desired (which may not be the case if some dependencies
+were not satisfied, for example).

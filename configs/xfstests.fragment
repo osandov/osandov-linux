@@ -1,2 +1,4 @@
+# Config options needed for running all xfstests
+
 CONFIG_FAIL_MAKE_REQUEST=y
 CONFIG_FAULT_INJECTION_DEBUG_FS=y

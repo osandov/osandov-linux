@@ -1,9 +1,0 @@
-{
-	"fragments": [
-		"base.fragment",
-		"qemu.fragment",
-		"qemu_extra.fragment",
-		"blktests.fragment",
-		"xfstests.fragment"
-	]
-}

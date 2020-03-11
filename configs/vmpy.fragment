@@ -1,35 +1,34 @@
-# Config options for running QEMU with vm.py
+# Config options for running QEMU with vm.py.
 
-# Paravirt
+# Paravirt.
 CONFIG_HYPERVISOR_GUEST=y
+CONFIG_KVM_GUEST=y
 CONFIG_PARAVIRT=y
 CONFIG_PARAVIRT_SPINLOCKS=y
-CONFIG_KVM_GUEST=y
 
-# Needed to boot
+# Needed to boot.
 CONFIG_BLK_DEV_INITRD=y
+CONFIG_EXT4_FS=y
 CONFIG_EXT4_FS_POSIX_ACL=y
 CONFIG_EXT4_FS_SECURITY=y
-CONFIG_EXT4_FS=y
 CONFIG_EXT4_USE_FOR_EXT2=y
+CONFIG_PCI=y
+CONFIG_SERIAL_8250=y
+CONFIG_SERIAL_8250_CONSOLE=y
 CONFIG_VIRTIO=y
 CONFIG_VIRTIO_BLK=y
 CONFIG_VIRTIO_PCI=y
 
-# Needed for loading modules with vm-modules-mounter
+# Needed for loading modules with vm-modules-mounter.
 CONFIG_9P_FS=y
 CONFIG_9P_FS_POSIX_ACL=y
 CONFIG_9P_FS_SECURITY=y
 CONFIG_NET_9P_VIRTIO=y
 CONFIG_NET_9P=y
 
-# Extra virtio drivers
+# Extra virtio drivers.
 CONFIG_HW_RANDOM=m
 CONFIG_HW_RANDOM_VIRTIO=m
-CONFIG_SCSI_VIRTIO=m
 CONFIG_VIRTIO_BALLOON=m
 CONFIG_VIRTIO_INPUT=m
 CONFIG_VIRTIO_NET=m
-
-# Compressing modules just wastes time
-CONFIG_MODULE_COMPRESS=n
