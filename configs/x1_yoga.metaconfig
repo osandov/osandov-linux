@@ -1,7 +1,6 @@
 {
-	"defconfig": "defconfig",
 	"fragments": [
-		"all.fragment",
+		"base.fragment",
 		"pc.fragment",
 		"x1_yoga.fragment"
 	]

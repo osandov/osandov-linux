@@ -19,15 +19,7 @@ def main():
     with open(args.metaconfig, 'r') as f:
         metaconfig = json.load(f)
 
-    cmd = ['merge_config.py']
-    try:
-        defconfig = os.path.join(os.path.dirname(args.metaconfig), metaconfig['defconfig'])
-        cmd.append('--defconfig')
-        cmd.append(defconfig)
-    except KeyError:
-        pass
-
-    cmd.append('--')
+    cmd = ['merge_config.py', '--']
     for fragment in metaconfig.get('fragments', []) + args.fragments:
         cmd.append(os.path.join(os.path.dirname(args.metaconfig), fragment))
     os.execvp(cmd[0], cmd)

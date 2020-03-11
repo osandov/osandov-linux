@@ -1,7 +1,6 @@
 {
-	"defconfig": "defconfig",
 	"fragments": [
-		"all.fragment",
+		"base.fragment",
 		"qemu.fragment",
 		"qemu_extra.fragment",
 		"blktests.fragment",

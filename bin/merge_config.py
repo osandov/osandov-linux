@@ -35,30 +35,18 @@ def parse_config(config, f):
 def main():
     parser = argparse.ArgumentParser(
         description='Merge multiple Kconfig fragments into a single Kconfig')
-    parser.add_argument('--defconfig', metavar='KCONFIG', default=None,
-        help='default Kconfig to use as the base for merging; if unspecified, `make defconfig` will be used instead')
     parser.add_argument(
         'fragments', metavar='FRAGMENT', nargs='+',
         help='Kconfig fragment file; later fragment files can override options in ealier ones')
     args = parser.parse_args()
-
-    if args.defconfig is None:
-        subprocess.check_call(['make', 'defconfig'])
-    else:
-        shutil.copyfile(args.defconfig, '.config')
-
-    config = OrderedDict()
-    with open('.config', 'r') as f:
-        parse_config(config, f)
 
     fragments = OrderedDict()
     for fragment in args.fragments:
         with open(fragment, 'r') as f:
             parse_config(fragments, f)
 
-    config.update(fragments)
     with open('.config', 'w') as f:
-        for option, value in config.items():
+        for option, value in fragments.items():
             f.write('CONFIG_{}={}\n'.format(option, value))
 
     subprocess.check_call(['make', 'olddefconfig'])
