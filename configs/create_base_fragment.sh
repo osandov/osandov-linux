@@ -6,6 +6,7 @@ set -euo pipefail
 # for.
 default_options=(
 	'BLK_DEV_NVME'
+	'CONSOLE_LOGLEVEL[^=]*'
 	'DEFAULT_HOSTNAME'
 	'HID'
 	'HYPERVISOR_GUEST'
