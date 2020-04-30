@@ -136,7 +136,7 @@ def cmd_run(args, config):
         os.execvp(qemu_args[0], qemu_args)
 
 
-def download_latest_archiso(mirror):
+def download_latest_archiso(mirror, config):
     with urllib.request.urlopen(mirror) as url:
         latest = re.search(r'archlinux-\d{4}\.\d{2}\.\d{2}-x86_64\.iso',
                            url.read().decode()).group()
@@ -424,7 +424,7 @@ def cmd_archinstall(args, config):
 
     if not hasattr(args, 'iso'):
         mirror = args.pacman_mirrors[0].replace('$repo/os/$arch', 'iso/latest')
-        args.iso = download_latest_archiso(mirror)
+        args.iso = download_latest_archiso(mirror, config)
 
     proxy_vars = ''.join([
         f'export {name}={os.environ[name]}\r'
