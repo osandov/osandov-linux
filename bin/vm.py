@@ -75,7 +75,7 @@ def get_build_path(args, config):
     kernel = getattr(args, 'kernel', None)
     if kernel is None:
         return None
-    if '/' not in kernel:
+    if not kernel.startswith('/') and not kernel.startswith('.'):
         builds_dir = config.get('Paths', 'Builds', fallback=None)
         if builds_dir is not None:
             build_path = os.path.join(builds_dir, kernel)
