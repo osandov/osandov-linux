@@ -9,6 +9,24 @@ import sys
 from typing import Any, BinaryIO, Iterator, Sequence, Union
 import uuid
 
+
+_crc32c_table = [0] * 256
+for i in range(256):
+    fwd = i
+    for j in range(8, 0, -1):
+        if fwd & 1:
+            fwd = (fwd >> 1) ^ 0x82F63B78
+        else:
+            fwd >>= 1
+        _crc32c_table[i] = fwd & 0xFFFFFFFF
+
+
+def crc32c(crc: int, b: bytes) -> int:
+    for c in b:
+        crc = (crc >> 8) ^ _crc32c_table[(crc ^ c) & 0xFF]
+    return crc
+
+
 BTRFS_SEND_STREAM_MAGIC = b"btrfs-stream\0"
 BTRFS_SEND_STREAM_VERSION = 1
 
@@ -92,7 +110,7 @@ class Cmd:
     crc: int
 
 
-def parse_send_stream(file: BinaryIO) -> Iterator[Cmd]:
+def parse_send_stream(file: BinaryIO, check_crcs: bool) -> Iterator[Cmd]:
     magic = file.read(len(BTRFS_SEND_STREAM_MAGIC))
     if magic != BTRFS_SEND_STREAM_MAGIC:
         raise ValueError("send stream magic does not match")
@@ -108,16 +126,24 @@ def parse_send_stream(file: BinaryIO) -> Iterator[Cmd]:
             cmd = CmdType(cmd)
         except ValueError:
             pass
+        data = file.read(cmd_len)
+        if check_crcs:
+            computed_crc = crc32c(crc32c(0, struct.pack("<IHI", cmd_len, cmd, 0)), data)
+            if computed_crc != crc:
+                raise ValueError(
+                    f"CRC mismatch (computed {computed_crc:#x} != expected {crc:#x})"
+                )
         attrs = []
         n = 0
         while n < cmd_len:
-            attr_type, attr_len = struct.unpack("<HH", file.read(4))
+            attr_type, attr_len = struct.unpack("<HH", data[n : n + 4])
+            n += 4
             try:
                 attr_type = AttrType(attr_type)
             except ValueError:
                 pass
-            attr_value: Any = file.read(attr_len)
-            n += 4 + attr_len
+            attr_value: Any = data[n : n + attr_len]
+            n += attr_len
 
             if attr_type in {
                 AttrType.CTRANSID,
@@ -165,11 +191,15 @@ def main() -> None:
         help="maximum string size to print",
     )
     parser.add_argument(
-        "-c", "--crc", action="store_true", default=False, help="show CRCs of commands"
+        "-c",
+        "--crc",
+        action="store_true",
+        default=False,
+        help="check and show CRCs of commands",
     )
     args = parser.parse_args()
 
-    for cmd in parse_send_stream(sys.stdin.buffer):
+    for cmd in parse_send_stream(sys.stdin.buffer, args.crc):
         if isinstance(cmd.type, CmdType):
             print(cmd.type.name)
         else:
