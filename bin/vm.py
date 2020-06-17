@@ -217,6 +217,12 @@ EOF
 for mirror in "${mirrors[@]}"; do
 	echo "Server = ${mirror}" >> /etc/pacman.d/mirrorlist
 done
+
+# For some unknown reason, pacstrap sometimes fails to resolve any hostnames;
+# resolving something beforehand seems to kick something in the stack so that
+# it works
+host aur.archlinux.org > /dev/null
+
 pacstrap /mnt "${packages[@]}"
 genfstab -U /mnt >> /mnt/etc/fstab
 cp /etc/pacman.d/gnupg/dirmngr.conf /mnt/etc/pacman.d/gnupg/dirmngr.conf
