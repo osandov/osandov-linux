@@ -173,9 +173,16 @@ mirrors=({' '.join(shlex.quote(mirror) for mirror in args.pacman_mirrors)})
 packages=({' '.join(shlex.quote(package) for package in args.packages)})
 """)
     script.append(r"""
-while ! systemctl is-active -q network.target && ! systemctl is-failed -q network.target; do
-	sleep 1
-done
+# We want IPv6 Router Advertisement enabled even if the ISO disabled it
+if [[ -d /etc/systemd/network ]]; then
+	find /etc/systemd/network -name '*.network' \
+		-exec sed -i '/^IPv6AcceptRA/d' {} \;
+fi
+
+# It'd be nice if we could use networkctl reload instead, but that doesn't wait
+# for the configuration to be reloaded and applied
+systemctl restart systemd-networkd.service
+systemctl restart systemd-networkd-wait-online.service
 
 export gateway="$(ip route show default | gawk 'match($0, /^\s*default.*via\s+([0-9.]+)/, a) { print a[1]; exit }')"
 [[ -z $gateway ]] && { echo "Could not find gateway" >&2; exit 1; }
