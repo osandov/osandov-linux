@@ -449,7 +449,7 @@ def cmd_archinstall(args, config):
 
     with MiniExpect(qemu_args) as proc:
         try:
-            proc.interact(expect=b'Boot Arch Linux')
+            proc.interact(expect=b'Arch Linux install medium')
             proc.interact(write=b'\t console=ttyS0,115200\r')
             proc.interact(expect=b'login: ')
             proc.interact(write=b'root\r')
