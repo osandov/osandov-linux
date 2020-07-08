@@ -445,7 +445,11 @@ def cmd_archinstall(args, config):
         if name in os.environ])
 
     os.chdir(config['Paths']['VMs'])
-    qemu_args = get_qemu_args(args) + ['-boot', 'd', '-no-reboot', '-cdrom', args.iso]
+    qemu_args = get_qemu_args(args) + [
+        '-drive', f'file={args.iso},format=raw,media=cdrom,readonly,if=none,id=cdrom',
+        '-device', 'ide-cd,drive=cdrom,bootindex=0',
+        '-no-reboot',
+    ]
 
     with MiniExpect(qemu_args) as proc:
         try:
