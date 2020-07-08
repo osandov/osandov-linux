@@ -60,7 +60,7 @@ qemu_options = [
     '-netdev', 'user,id=vlan0',
     '-device', 'virtio-net,netdev=vlan0',
 
-    '-drive', 'file={args.name}/{args.name}.qcow2,index=0,media=disk,cache=none,if=none,id=vda',
+    '-drive', 'file={args.name}/{args.name}.qcow2,media=disk,cache=none,if=none,id=vda',
     '-device', 'virtio-blk-pci,drive=vda,bootindex=1',
 ]
 
