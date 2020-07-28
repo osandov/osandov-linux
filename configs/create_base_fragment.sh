@@ -5,6 +5,7 @@ set -euo pipefail
 # Options that the distro config may override but we want to use the default
 # for.
 default_options=(
+	'ATA'
 	'BLK_DEV_NVME'
 	'CONSOLE_LOGLEVEL[^=]*'
 	'DEFAULT_HOSTNAME'
@@ -16,6 +17,7 @@ default_options=(
 	'MODULE_SIG[^=]*'
 	'NVM'
 	'NVME_CORE'
+	'SCSI'
 	'SECURITY_LOCKDOWN_LSM[^=]*'
 	'USB'
 	'VFIO'
