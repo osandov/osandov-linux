@@ -1,29 +1,32 @@
 #!/usr/bin/env python3
 
 import argparse
-import ctypes
-import math
 
-
-libbtrfs = ctypes.CDLL('libbtrfs.so.0')
-libbtrfs.crc32c_optimization_init.restype = None
-libbtrfs.crc32c_optimization_init.argtypes = []
-libbtrfs.crc32c_le.restype = ctypes.c_uint32
-libbtrfs.crc32c_le.argtypes = [ctypes.c_uint32, ctypes.POINTER(ctypes.c_char), ctypes.c_size_t]
-
-libbtrfs.crc32c_optimization_init()
+_crc32c_table = [0] * 256
+for i in range(256):
+    fwd = i
+    for j in range(8, 0, -1):
+        if fwd & 1:
+            fwd = (fwd >> 1) ^ 0x82F63B78
+        else:
+            fwd >>= 1
+        _crc32c_table[i] = fwd & 0xFFFFFFFF
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='calculate the CRC32C of zero byte blocks of different sizes')
+        description="calculate the Btrfs CRC32C of zero byte blocks of different sizes"
+    )
     args = parser.parse_args()
 
-    b = bytes(2**26)
-    for i in range(9, int(math.log2(len(b)))):
-        crc = libbtrfs.crc32c_le(0xffffffff, b, 2**i) ^ 0xffffffff
-        print(f'{2**i} 0x{crc:08x}')
+    crc = 0xFFFFFFFF
+    i = 1
+    while True:
+        crc = (crc >> 8) ^ _crc32c_table[crc & 0xFF]
+        if i & (i - 1) == 0:
+            print(f"{i} 0x{crc ^ 0xFFFFFFFF:08x}", flush=True)
+        i += 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
