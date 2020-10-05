@@ -402,6 +402,7 @@ def cmd_archinstall(args, config):
         # Base system
         'base',
         'grub',
+        'inetutils',
         'linux',
         'openssh',
         'polkit',
