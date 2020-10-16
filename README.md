@@ -31,7 +31,8 @@ configuration options (CPUs, memory, disk size) can be given. The new VM only
 has a virtio-net NIC, a (blank) virtio-blk root disk, and a serial console.
 
 The configuration file for each VM is named `config.py`. It's a Python script
-which must define a `qemu_options` list and `kernel_cmdline` list.
+which must define a `qemu_options` list and `kernel_cmdline` list. It may also
+define a `qemu_arch` string.
 
 `vm.py run` runs a VM. Arbitrary QEMU options may be added to those in the
 configuration. The killer feature, however, is the `-k` option: this runs the

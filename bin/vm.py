@@ -87,7 +87,7 @@ def get_build_path(args, config):
 def get_qemu_args(args, build_path=None):
     config = runpy.run_path(os.path.join(args.name, 'config.py'))
 
-    qemu_options = ['qemu-system-x86_64']
+    qemu_options = ['qemu-system-' + config.get('qemu_arch', 'x86_64')]
     qemu_options.extend(config.get('qemu_options', []))
 
     # Command-line arguments.
