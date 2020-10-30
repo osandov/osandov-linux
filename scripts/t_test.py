@@ -3,12 +3,14 @@
 # SPDX-License-Identifier: MIT
 
 import argparse
-import numpy
-import scipy.stats
+import itertools
 import shutil
 import subprocess
 import sys
-from typing import List, Tuple
+from typing import Iterator, List, Tuple
+
+import numpy
+import scipy.stats
 
 
 class CustomFormatter(
@@ -93,6 +95,25 @@ commands differ significantly, we report the relation.
         metavar="A",
         help="maximum p-value considered statistically significant",
     )
+
+    order_group = parser.add_mutually_exclusive_group()
+    order_group.add_argument(
+        "--alternating",
+        dest="order",
+        action="store_const",
+        const="alternating",
+        default=argparse.SUPPRESS,
+        help="alternate between running command1 and command2 (default)",
+    )
+    order_group.add_argument(
+        "--consecutive",
+        dest="order",
+        action="store_const",
+        const="consecutive",
+        default=argparse.SUPPRESS,
+        help="run command1 repeatedly and then run command2 repeatedly",
+    )
+
     parser.add_argument(
         "--pre",
         type=str,
@@ -120,35 +141,13 @@ commands differ significantly, we report the relation.
         default="auto",
         help="colorize results",
     )
-    parser.add_argument("command1", help="first shell command")
-    parser.add_argument("command2", help="second shell command")
+    parser.add_argument(
+        "commands", metavar="command1", action="append", help="first shell command"
+    )
+    parser.add_argument(
+        "commands", metavar="command2", action="append", help="second shell command"
+    )
     args = parser.parse_args()
-
-    runs = 2 * args.repeat
-
-    if args.progress == "auto":
-        progress = sys.stderr.isatty()
-    else:
-        progress = args.progress == "always"
-    if progress:
-        runs_columns = len(str(runs))
-        reserved_columns = 2 * runs_columns + 4
-
-        def print_progress_bar(i: int) -> None:
-            columns = shutil.get_terminal_size().columns
-            line = "\r"
-            if columns > reserved_columns:
-                bar_columns = columns - reserved_columns
-                filled_columns = int(bar_columns * (i / runs))
-                empty_columns = bar_columns - filled_columns
-                line += "[" + filled_columns * "#" + empty_columns * "-" + "] "
-            line += f"{i:>{runs_columns}}/{runs}"
-            sys.stderr.write(line)
-
-    else:
-
-        def print_progress_bar(i: int) -> None:
-            pass
 
     if args.color == "auto":
         color = sys.stdout.isatty()
@@ -168,21 +167,56 @@ commands differ significantly, we report the relation.
     else:
         red = green = bold = lambda s: s
 
-    commands = args.command1, args.command2
+    num_runs = 2 * args.repeat
+    runs: Iterator[int]
+    if getattr(args, "order", "alternating") == "alternating":
+        runs = itertools.islice(itertools.cycle((0, 1)), num_runs)
+    else:  # args.order == "consecutive"
+        runs = itertools.chain(
+            itertools.repeat(0, args.repeat),
+            itertools.repeat(1, args.repeat),
+        )
+
+    if args.progress == "auto":
+        progress = sys.stderr.isatty()
+    else:
+        progress = args.progress == "always"
+    if progress:
+        num_runs_columns = len(str(num_runs))
+        reserved_columns = 2 * num_runs_columns + 4
+
+        def print_progress_bar(i: int) -> None:
+            columns = shutil.get_terminal_size().columns
+            line = "\r"
+            if columns > reserved_columns:
+                bar_columns = columns - reserved_columns
+                filled_columns = int(bar_columns * (i / num_runs))
+                empty_columns = bar_columns - filled_columns
+                line += "[" + filled_columns * "#" + empty_columns * "-" + "] "
+            line += f"{i:>{num_runs_columns}}/{num_runs}"
+            sys.stderr.write(line)
+
+    else:
+
+        def print_progress_bar(i: int) -> None:
+            pass
+
     populations: List[Tuple[List[float], List[float]]] = []
-    for i in range(runs):
+    for i, command_index in enumerate(runs):
         print_progress_bar(i)
 
         if args.pre is not None:
             subprocess.check_call(args.pre, shell=True)
 
-        output = subprocess.check_output(commands[i % 2], shell=True, text=True)
+        output = subprocess.check_output(
+            args.commands[command_index], shell=True, text=True
+        )
         for line in output.splitlines():
             for j, token in enumerate(line.split("\t")):
                 if token:
                     if len(populations) <= j:
                         populations.append(([], []))
-                    populations[j][i % 2].append(float(token))
+                    populations[j][command_index].append(float(token))
 
         if args.post is not None:
             subprocess.check_call(args.post, shell=True)
@@ -205,7 +239,8 @@ commands differ significantly, we report the relation.
             )
             if args.verbose:
                 print(
-                    "  samples = ", ", ".join([f"{sample:f}" for sample in samples]),
+                    "  samples =",
+                    ", ".join([f"{sample:f}" for sample in samples]),
                 )
 
         result = scipy.stats.ttest_ind(samples1, samples2)
