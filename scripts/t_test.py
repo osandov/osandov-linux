@@ -115,6 +115,13 @@ commands differ significantly, we report the relation.
     )
 
     parser.add_argument(
+        "--warmup",
+        type=int,
+        default=0,
+        metavar="N",
+        help="additional number of times to run each command before collecting data",
+    )
+    parser.add_argument(
         "--pre",
         type=str,
         metavar="COMMAND",
@@ -167,15 +174,22 @@ commands differ significantly, we report the relation.
     else:
         red = green = bold = lambda s: s
 
-    num_runs = 2 * args.repeat
     runs: Iterator[int]
     if getattr(args, "order", "alternating") == "alternating":
-        runs = itertools.islice(itertools.cycle((0, 1)), num_runs)
+        runs = itertools.chain.from_iterable(
+            itertools.chain(
+                itertools.repeat(((0, False), (1, False)), args.warmup),
+                itertools.repeat(((0, True), (1, True)), args.repeat),
+            ),
+        )
     else:  # args.order == "consecutive"
         runs = itertools.chain(
-            itertools.repeat(0, args.repeat),
-            itertools.repeat(1, args.repeat),
+            itertools.repeat((0, False), args.warmup),
+            itertools.repeat((0, True), args.repeat),
+            itertools.repeat((1, False), args.warmup),
+            itertools.repeat((1, True), args.repeat),
         )
+    num_runs = 2 * args.warmup + 2 * args.repeat
 
     if args.progress == "auto":
         progress = sys.stderr.isatty()
@@ -202,7 +216,7 @@ commands differ significantly, we report the relation.
             pass
 
     populations: List[Tuple[List[float], List[float]]] = []
-    for i, command_index in enumerate(runs):
+    for i, (command_index, record) in enumerate(runs):
         print_progress_bar(i)
 
         if args.pre is not None:
@@ -211,12 +225,13 @@ commands differ significantly, we report the relation.
         output = subprocess.check_output(
             args.commands[command_index], shell=True, text=True
         )
-        for line in output.splitlines():
-            for j, token in enumerate(line.split("\t")):
-                if token:
-                    if len(populations) <= j:
-                        populations.append(([], []))
-                    populations[j][command_index].append(float(token))
+        if record:
+            for line in output.splitlines():
+                for j, token in enumerate(line.split("\t")):
+                    if token:
+                        if len(populations) <= j:
+                            populations.append(([], []))
+                        populations[j][command_index].append(float(token))
 
         if args.post is not None:
             subprocess.check_call(args.post, shell=True)
