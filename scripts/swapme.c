@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
+// SPDX-License-Identifier: MIT
+
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>

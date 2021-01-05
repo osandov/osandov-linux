@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
+// SPDX-License-Identifier: MIT
+
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <stdio.h>

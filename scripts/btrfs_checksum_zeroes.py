@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
+# SPDX-License-Identifier: MIT
 
 import argparse
 

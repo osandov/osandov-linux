@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
+# SPDX-License-Identifier: MIT
 
 set -euo pipefail
 

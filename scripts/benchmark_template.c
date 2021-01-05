@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
+// SPDX-License-Identifier: MIT
+
 /*
  * Template for a benchmark that should run as many iterations as possible in
  * one second.

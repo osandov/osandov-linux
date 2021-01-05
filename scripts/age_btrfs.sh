@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
+# SPDX-License-Identifier: MIT
 
 set -e
 

@@ -1,5 +1,5 @@
 // Copyright (c) Facebook, Inc. and its affiliates.
-// SPDX-License-Identifier: GPL-3.0+
+// SPDX-License-Identifier: MIT
 
 #define _GNU_SOURCE
 #include <errno.h>

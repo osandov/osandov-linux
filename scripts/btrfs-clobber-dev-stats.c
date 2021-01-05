@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
+// SPDX-License-Identifier: MIT
+
 /*
  * To build this, drop this file in the top level of the btrfs-progs repository
  * and run make btrfs-clobber-dev-stats. Maybe someday libbtrfs will provide

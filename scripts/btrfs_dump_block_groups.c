@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
+// SPDX-License-Identifier: MIT
+
 #include <stdbool.h>
 #include <fcntl.h>
 #include <inttypes.h>
