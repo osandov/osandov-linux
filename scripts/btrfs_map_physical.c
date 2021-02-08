@@ -113,10 +113,10 @@ static int read_chunk_tree(int fd, struct chunk **chunks, size_t *num_chunks)
 		.key = {
 			.tree_id = BTRFS_CHUNK_TREE_OBJECTID,
 			.min_objectid = BTRFS_FIRST_CHUNK_TREE_OBJECTID,
-			.max_objectid = BTRFS_FIRST_CHUNK_TREE_OBJECTID,
 			.min_type = BTRFS_CHUNK_ITEM_KEY,
-			.max_type = BTRFS_CHUNK_ITEM_KEY,
 			.min_offset = 0,
+			.max_objectid = BTRFS_FIRST_CHUNK_TREE_OBJECTID,
+			.max_type = BTRFS_CHUNK_ITEM_KEY,
 			.max_offset = UINT64_MAX,
 			.min_transid = 0,
 			.max_transid = UINT64_MAX,

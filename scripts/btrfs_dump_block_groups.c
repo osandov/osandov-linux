@@ -99,10 +99,10 @@ int main(int argc, char **argv)
 		.key = {
 			.tree_id = BTRFS_EXTENT_TREE_OBJECTID,
 			.min_objectid = 0,
-			.max_objectid = UINT64_MAX,
 			.min_type = 0,
-			.max_type = UINT32_MAX,
 			.min_offset = 0,
+			.max_objectid = UINT64_MAX,
+			.max_type = UINT8_MAX,
 			.max_offset = UINT64_MAX,
 			.min_transid = 0,
 			.max_transid = UINT64_MAX,
@@ -255,17 +255,17 @@ int main(int argc, char **argv)
 		search.key.min_objectid = header->objectid;
 		search.key.min_type = header->type;
 		search.key.min_offset = header->offset;
-		if (search.key.min_offset == UINT64_MAX) {
-			if (search.key.min_type == UINT32_MAX) {
+		if (search.key.min_offset < UINT64_MAX) {
+			search.key.min_offset++;
+		} else {
+			search.key.min_offset = 0;
+			if (search.key.min_type < UINT8_MAX) {
+				search.key.min_type++;
+			} else {
+				search.key.min_type = 0;
 				if (search.key.min_objectid == UINT64_MAX)
 					break;
-				else
-					search.key.min_objectid++;
-			} else {
-				search.key.min_type++;
 			}
-		} else {
-			search.key.min_offset++;
 		}
 	}
 
