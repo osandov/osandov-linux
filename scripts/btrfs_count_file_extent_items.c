@@ -86,6 +86,7 @@ static bool file_extent_items_in_tree(int fd, uint64_t tree_id,
 				search.key.min_type = 0;
 				if (search.key.min_objectid == UINT64_MAX)
 					break;
+				search.key.min_objectid++;
 			}
 		}
 	}

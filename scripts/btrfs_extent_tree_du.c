@@ -383,6 +383,7 @@ next:
 				search.key.min_type = 0;
 				if (search.key.min_objectid == UINT64_MAX)
 					break;
+				search.key.min_objectid++;
 			}
 		}
 	}
