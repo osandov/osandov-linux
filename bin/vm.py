@@ -22,28 +22,40 @@ import urllib.request
 
 
 def prompt_yes_no(prompt, default=True):
-    prompt += ' [Y/n] ' if default else ' [y/N] '
+    prompt += " [Y/n] " if default else " [y/N] "
     sys.stderr.write(prompt)
     sys.stderr.flush()
     answer = input().strip().lower()
-    if answer.startswith('y'):
+    if answer.startswith("y"):
         return True
-    elif answer.startswith('n'):
+    elif answer.startswith("n"):
         return False
     else:
         return default
 
 
 def cmd_create(args, config):
-    os.makedirs(config['Paths']['VMs'], exist_ok=True)
-    os.chdir(config['Paths']['VMs'])
+    os.makedirs(config["Paths"]["VMs"], exist_ok=True)
+    os.chdir(config["Paths"]["VMs"])
 
     os.mkdir(args.name)
-    print(f'Creating {args.name!r}, cpu={args.cpu} memory={args.memory}')
-    subprocess.run(['qemu-img', 'create', '-f', 'qcow2', '-o', 'nocow=on',
-                    f'{args.name}/{args.name}.qcow2', args.size], check=True)
-    with open(f'{args.name}/config.py', 'w') as f:
-        f.write(f"""\
+    print(f"Creating {args.name!r}, cpu={args.cpu} memory={args.memory}")
+    subprocess.run(
+        [
+            "qemu-img",
+            "create",
+            "-f",
+            "qcow2",
+            "-o",
+            "nocow=on",
+            f"{args.name}/{args.name}.qcow2",
+            args.size,
+        ],
+        check=True,
+    )
+    with open(f"{args.name}/config.py", "w") as f:
+        f.write(
+            f"""\
 qemu_options = [
     '-nodefaults',
     '-display', 'none',
@@ -70,15 +82,16 @@ kernel_cmdline = [
     'root=/dev/vda1',
     'console=ttyS0,115200',
 ]
-""")
+"""
+        )
 
 
 def get_build_path(args, config):
-    kernel = getattr(args, 'kernel', None)
+    kernel = getattr(args, "kernel", None)
     if kernel is None:
         return None
-    if not kernel.startswith('/') and not kernel.startswith('.'):
-        builds_dir = config.get('Paths', 'Builds', fallback=None)
+    if not kernel.startswith("/") and not kernel.startswith("."):
+        builds_dir = config.get("Paths", "Builds", fallback=None)
         if builds_dir is not None:
             build_path = os.path.join(builds_dir, kernel)
             if os.path.exists(build_path):
@@ -87,82 +100,105 @@ def get_build_path(args, config):
 
 
 def get_qemu_args(args, build_path=None):
-    config = runpy.run_path(os.path.join(args.name, 'config.py'))
+    config = runpy.run_path(os.path.join(args.name, "config.py"))
 
-    qemu_options = ['qemu-system-' + config.get('qemu_arch', 'x86_64')]
-    qemu_options.extend(config.get('qemu_options', []))
+    qemu_options = ["qemu-system-" + config.get("qemu_arch", "x86_64")]
+    qemu_options.extend(config.get("qemu_options", []))
 
     # Command-line arguments.
     if build_path is not None:
         newconfig = subprocess.check_output(
-            ['make', '-s', 'listnewconfig'], cwd=build_path,
-            universal_newlines=True).strip()
+            ["make", "-s", "listnewconfig"], cwd=build_path, universal_newlines=True
+        ).strip()
         if newconfig:
-            sys.exit('Kernel build .config is not up to date; cannot determine image name')
+            sys.exit(
+                "Kernel build .config is not up to date; cannot determine image name"
+            )
         image_name = subprocess.check_output(
-            ['make', '-s', 'image_name'], cwd=build_path,
-            universal_newlines=True).strip()
+            ["make", "-s", "image_name"], cwd=build_path, universal_newlines=True
+        ).strip()
         kernel_image_path = os.path.join(build_path, image_name)
-        qemu_options.extend(('-kernel', kernel_image_path))
+        qemu_options.extend(("-kernel", kernel_image_path))
         virtfs_opts = [
-            'local', f'path={build_path}', 'security_model=none', 'readonly',
-            'mount_tag=modules',
+            "local",
+            f"path={build_path}",
+            "security_model=none",
+            "readonly",
+            "mount_tag=modules",
         ]
-        qemu_options.extend(('-virtfs', ','.join(virtfs_opts)))
+        qemu_options.extend(("-virtfs", ",".join(virtfs_opts)))
 
-    if hasattr(args, 'initrd'):
-        qemu_options.extend(('-initrd', args.initrd))
-    if hasattr(args, 'qemu_options'):
+    if hasattr(args, "initrd"):
+        qemu_options.extend(("-initrd", args.initrd))
+    if hasattr(args, "qemu_options"):
         qemu_options.extend(args.qemu_options)
 
-    kernel_cmdline = config.get('kernel_cmdline', [])
-    if hasattr(args, 'append'):
+    kernel_cmdline = config.get("kernel_cmdline", [])
+    if hasattr(args, "append"):
         kernel_cmdline.extend(args.append)
 
     # Don't use the VM script's default append line if a kernel image was not
     # passed. If it was passed explicitly, let QEMU error out on the user.
-    if (('-kernel' in qemu_options or hasattr(args, 'append')) and
-        '-append' not in qemu_options):
-        qemu_options.extend(('-append', ' '.join(kernel_cmdline)))
+    if (
+        "-kernel" in qemu_options or hasattr(args, "append")
+    ) and "-append" not in qemu_options:
+        qemu_options.extend(("-append", " ".join(kernel_cmdline)))
 
     return qemu_options
 
 
 def cmd_run(args, config):
     build_path = get_build_path(args, config)
-    os.chdir(config['Paths']['VMs'])
+    os.chdir(config["Paths"]["VMs"])
     qemu_args = get_qemu_args(args, build_path)
     if args.dry_run:
-        print(' '.join(shlex.quote(arg) for arg in qemu_args))
+        print(" ".join(shlex.quote(arg) for arg in qemu_args))
     else:
         os.execvp(qemu_args[0], qemu_args)
 
 
 def download_latest_archiso(mirror, config):
     with urllib.request.urlopen(mirror) as url:
-        latest = re.search(r'archlinux-\d{4}\.\d{2}\.\d{2}-x86_64\.iso',
-                           url.read().decode()).group()
+        latest = re.search(
+            r"archlinux-\d{4}\.\d{2}\.\d{2}-x86_64\.iso", url.read().decode()
+        ).group()
 
-    iso_dir = os.path.join(config['Paths']['VMs'], 'iso')
+    iso_dir = os.path.join(config["Paths"]["VMs"], "iso")
     iso_path = os.path.join(iso_dir, latest)
 
     if not os.path.exists(iso_path):
-        if not prompt_yes_no(f'Download latest Arch Linux ISO ({latest})?'):
-            sys.exit('Use --iso if you have a previously downloaded ISO you want to use')
+        if not prompt_yes_no(f"Download latest Arch Linux ISO ({latest})?"):
+            sys.exit(
+                "Use --iso if you have a previously downloaded ISO you want to use"
+            )
         os.makedirs(iso_dir, exist_ok=True)
-        subprocess.run(['curl', '-L', '-C', '-', '-f', '-o', iso_path + '.part', mirror + '/' + latest],
-                       check=True)
+        subprocess.run(
+            [
+                "curl",
+                "-L",
+                "-C",
+                "-",
+                "-f",
+                "-o",
+                iso_path + ".part",
+                mirror + "/" + latest,
+            ],
+            check=True,
+        )
         # TODO: check checksum
-        os.rename(iso_path + '.part', iso_path)
+        os.rename(iso_path + ".part", iso_path)
     return iso_path
 
 
 def install_script(args, proxy_vars):
-    script = [r"""#!/bin/bash
+    script = [
+        r"""#!/bin/bash
 
 set -eux
-"""]
-    script.append(f"""
+"""
+    ]
+    script.append(
+        f"""
 export root_dev={shlex.quote(args.root_dev)}
 export root_part="${{root_dev}}1"
 export mkfs_cmd={shlex.quote(args.mkfs_cmd)}
@@ -173,8 +209,10 @@ export hostname={shlex.quote(args.hostname)}
 export user={shlex.quote(args.user)}
 mirrors=({' '.join(shlex.quote(mirror) for mirror in args.pacman_mirrors)})
 packages=({' '.join(shlex.quote(package) for package in args.packages)})
-""")
-    script.append(r"""
+"""
+    )
+    script.append(
+        r"""
 # We want IPv6 Router Advertisement enabled even if the ISO disabled it
 if [[ -d /etc/systemd/network ]]; then
 	find /etc/systemd/network -name '*.network' \
@@ -235,15 +273,19 @@ ln -sf /run/systemd/resolve/resolv.conf /mnt/etc/resolv.conf
 
 arch-chroot /mnt bash -s << "ARCHCHROOTEOF"
 set -eux
-""")
+"""
+    )
     if proxy_vars:
-        script.append(f"""
+        script.append(
+            f"""
 # Configure proxy
 cat << "EOF" > /etc/profile.d/proxy.sh
 {proxy_vars}EOF
 chmod +x /etc/profile.d/proxy.sh
-""")
-    script.append(r"""
+"""
+        )
+    script.append(
+        r"""
 # Configure locale
 sed -r -i "s/^#(${locales}) /\\1 /" /etc/locale.gen
 echo "LANG=${locale}" > /etc/locale.conf
@@ -332,8 +374,9 @@ cd aurman
 makepkg -si --noconfirm --skippgpcheck
 SUDOEOF
 ARCHCHROOTEOF
-""")
-    return ''.join(script)
+"""
+    )
+    return "".join(script)
 
 
 class MiniExpect:
@@ -396,71 +439,75 @@ class MiniExpect:
                 else:  # key.fileobj == sys.stdin and mask == selectors.EVENT_READ
                     read = os.read(sys.stdin.fileno(), 4096)
                     writebuf.extend(read)
-                    self._sel.modify(self.master, selectors.EVENT_READ | selectors.EVENT_WRITE)
+                    self._sel.modify(
+                        self.master, selectors.EVENT_READ | selectors.EVENT_WRITE
+                    )
 
 
 def cmd_archinstall(args, config):
     args.packages = [
         # Base system
-        'base',
-        'grub',
-        'inetutils',
-        'linux',
-        'openssh',
-        'polkit',
-        'sudo',
-
+        "base",
+        "grub",
+        "inetutils",
+        "linux",
+        "openssh",
+        "polkit",
+        "sudo",
         # Utilities
-        'rsync',
-
+        "rsync",
         # Development
-        'asciidoc',
-        'base-devel',
-        'cscope',
-        'gdb',
-        'git',
-        'ltrace',
-        'perf',
-        'python',
-        'python2',
-        'strace',
-        'vim',
-
+        "asciidoc",
+        "base-devel",
+        "cscope",
+        "gdb",
+        "git",
+        "ltrace",
+        "perf",
+        "python",
+        "python2",
+        "strace",
+        "vim",
         # xfstests
-        'attr',
-        'bc',
-        'fio',
-        'libaio',
-        'psmisc',
-        'xfsprogs',
+        "attr",
+        "bc",
+        "fio",
+        "libaio",
+        "psmisc",
+        "xfsprogs",
     ]
 
-    if not hasattr(args, 'hostname'):
-        args.hostname = re.sub(r'[^-a-z0-9]+', '-', args.name.lower()).strip('-')
+    if not hasattr(args, "hostname"):
+        args.hostname = re.sub(r"[^-a-z0-9]+", "-", args.name.lower()).strip("-")
 
-    if not hasattr(args, 'iso'):
-        mirror = args.pacman_mirrors[0].replace('$repo/os/$arch', 'iso/latest')
+    if not hasattr(args, "iso"):
+        mirror = args.pacman_mirrors[0].replace("$repo/os/$arch", "iso/latest")
         args.iso = download_latest_archiso(mirror, config)
 
-    proxy_vars = ''.join([
-        f'export {name}={os.environ[name]}\r'
-        for name in ['http_proxy', 'https_proxy', 'ftp_proxy']
-        if name in os.environ])
+    proxy_vars = "".join(
+        [
+            f"export {name}={os.environ[name]}\r"
+            for name in ["http_proxy", "https_proxy", "ftp_proxy"]
+            if name in os.environ
+        ]
+    )
 
-    os.chdir(config['Paths']['VMs'])
+    os.chdir(config["Paths"]["VMs"])
     qemu_args = get_qemu_args(args) + [
-        '-drive', f'file={args.iso},format=raw,media=cdrom,readonly,if=none,id=cdrom',
-        '-device', 'ide-cd,drive=cdrom,bootindex=0',
-        '-no-reboot',
+        "-drive",
+        f"file={args.iso},format=raw,media=cdrom,readonly,if=none,id=cdrom",
+        "-device",
+        "ide-cd,drive=cdrom,bootindex=0",
+        "-no-reboot",
     ]
 
     with MiniExpect(qemu_args) as proc:
         try:
-            proc.interact(expect=b'Arch Linux install medium')
-            proc.interact(write=b'\t console=ttyS0,115200\r')
-            proc.interact(expect=b'login: ')
-            proc.interact(write=b'root\r')
-            proc.interact(expect=b'# ')
+            proc.interact(expect=b"Arch Linux install medium")
+            proc.interact(write=b"\t console=ttyS0,115200\r")
+            proc.interact(expect=b"login: ")
+            proc.interact(write=b"root\r")
+            proc.interact(expect=b"# ")
             # This grmlzsh feature breaks heredocs containing some commands
             # (like git).
             proc.interact(write=b"zstyle ':acceptline:default' nocompwarn true\r")
@@ -468,12 +515,14 @@ def cmd_archinstall(args, config):
             proc.interact(write=b'OLD_PS2="$PS2"; PS2=\r')
             proc.interact(write=proxy_vars.encode())
             proc.interact(write=b'cat > install.sh << "INSTALLSHEOF"\r')
-            proc.interact(write=install_script(args, proxy_vars).replace('\n', '\r').encode())
-            proc.interact(write=b'INSTALLSHEOF\r')
+            proc.interact(
+                write=install_script(args, proxy_vars).replace("\n", "\r").encode()
+            )
+            proc.interact(write=b"INSTALLSHEOF\r")
             proc.interact(write=b'PS2="$OLDPS2"\r')
-            proc.interact(write=b'chmod +x ./install.sh\r')
+            proc.interact(write=b"chmod +x ./install.sh\r")
             if not args.edit:
-                proc.interact(write=b'./install.sh && poweroff\r')
+                proc.interact(write=b"./install.sh && poweroff\r")
             proc.interact(until_eof=True)
         except EOFError:
             pass
@@ -483,102 +532,162 @@ def cmd_archinstall(args, config):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Manage QEMU virtual machines')
+    parser = argparse.ArgumentParser(description="Manage QEMU virtual machines")
 
     subparsers = parser.add_subparsers(
-        title='command', description='command to run', dest='command')
+        title="command", description="command to run", dest="command"
+    )
     subparsers.required = True
 
     parser_create = subparsers.add_parser(
-        'create', help='create a new virtual machine',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        "create",
+        help="create a new virtual machine",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_create.add_argument("name", metavar="NAME", help="name of the VM to create")
     parser_create.add_argument(
-        'name', metavar='NAME', help='name of the VM to create')
+        "-c",
+        "--cpu",
+        type=str,
+        default="2",
+        help="number of CPUs to give the guest (QEMU -smp option)",
+    )
     parser_create.add_argument(
-        '-c', '--cpu', type=str, default='2',
-        help='number of CPUs to give the guest (QEMU -smp option)')
+        "-m",
+        "--memory",
+        type=str,
+        default="2G",
+        help="amount of RAM to give the guest (QEMU -m option)",
+    )
     parser_create.add_argument(
-        '-m', '--memory', type=str, default='2G',
-        help='amount of RAM to give the guest (QEMU -m option)')
-    parser_create.add_argument(
-        '-s', '--size', type=str, default='16G',
-        help="size of the guest's root disk (can use k, M, G, and T suffixes)")
+        "-s",
+        "--size",
+        type=str,
+        default="16G",
+        help="size of the guest's root disk (can use k, M, G, and T suffixes)",
+    )
     parser_create.set_defaults(func=cmd_create)
 
     parser_run = subparsers.add_parser(
-        'run', help='run a virtual machine',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        "run",
+        help="run a virtual machine",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_run.add_argument("name", metavar="NAME", help="name of the VM to run")
     parser_run.add_argument(
-        'name', metavar='NAME', help='name of the VM to run')
+        "-k",
+        "--kernel",
+        default=argparse.SUPPRESS,
+        help="directory containing kernel build to run; "
+        "either a directory in the builds directory, "
+        "an absolute path, "
+        "or a path relative to the current directory",
+    )
     parser_run.add_argument(
-        '-k', '--kernel', default=argparse.SUPPRESS,
-        help='directory containing kernel build to run; '
-             'either a directory in the builds directory, '
-             'an absolute path, '
-             'or a path relative to the current directory')
+        "-i",
+        "--initrd",
+        metavar="FILE",
+        default=argparse.SUPPRESS,
+        help="file to use as initial ramdisk (only when passing -k)",
+    )
     parser_run.add_argument(
-        '-i', '--initrd', metavar='FILE', default=argparse.SUPPRESS,
-        help='file to use as initial ramdisk (only when passing -k)')
+        "-a",
+        "--append",
+        action="append",
+        default=argparse.SUPPRESS,
+        help="append a kernel command line argument (only when passing -k)",
+    )
     parser_run.add_argument(
-        '-a', '--append', action='append', default=argparse.SUPPRESS,
-        help='append a kernel command line argument (only when passing -k)')
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="print QEMU command line instead of running",
+    )
     parser_run.add_argument(
-        '-n', '--dry-run', action='store_true',
-        help='print QEMU command line instead of running')
-    parser_run.add_argument(
-        'qemu_options', metavar='QEMU_OPTION', nargs='*',
-        help='extra options to pass directly to QEMU')
+        "qemu_options",
+        metavar="QEMU_OPTION",
+        nargs="*",
+        help="extra options to pass directly to QEMU",
+    )
     parser_run.set_defaults(func=cmd_run)
 
     parser_archinstall = subparsers.add_parser(
-        'archinstall', help='install Arch Linux on a virtual machine',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        "archinstall",
+        help="install Arch Linux on a virtual machine",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser_archinstall.add_argument(
-        'name', metavar='NAME', help='name of the VM to install')
+        "name", metavar="NAME", help="name of the VM to install"
+    )
     parser_archinstall.add_argument(
-        '-e', '--edit', action='store_true',
+        "-e",
+        "--edit",
+        action="store_true",
         help="don't run the installation script automatically; "
-             "use this if you'd like to edit the script before running it")
+        "use this if you'd like to edit the script before running it",
+    )
     parser_archinstall.add_argument(
-        '--root-dev', metavar='DEV', default='/dev/vda',
-        help='device to partition for root file system and bootloader')
+        "--root-dev",
+        metavar="DEV",
+        default="/dev/vda",
+        help="device to partition for root file system and bootloader",
+    )
     parser_archinstall.add_argument(
-        '--mkfs-cmd', metavar='CMD', default='mkfs.ext4',
-        help='command to run on the root device')
+        "--mkfs-cmd",
+        metavar="CMD",
+        default="mkfs.ext4",
+        help="command to run on the root device",
+    )
     parser_archinstall.add_argument(
-        '--pacman-mirrors', metavar='URL', nargs='+',
-        default=['https://mirrors.kernel.org/archlinux/$repo/os/$arch'],
-        help='mirror list to use for pacman')
+        "--pacman-mirrors",
+        metavar="URL",
+        nargs="+",
+        default=["https://mirrors.kernel.org/archlinux/$repo/os/$arch"],
+        help="mirror list to use for pacman",
+    )
     parser_archinstall.add_argument(
-        '--locales', metavar='LOCALE', nargs='+', default=['en_US.UTF-8'],
-        help='locales to generate; the first one is used as the default')
+        "--locales",
+        metavar="LOCALE",
+        nargs="+",
+        default=["en_US.UTF-8"],
+        help="locales to generate; the first one is used as the default",
+    )
     parser_archinstall.add_argument(
-        '--timezone', metavar='TZ', default='America/Los_Angeles',
-        help='time zone to use; see tzselect(8)')
+        "--timezone",
+        metavar="TZ",
+        default="America/Los_Angeles",
+        help="time zone to use; see tzselect(8)",
+    )
     parser_archinstall.add_argument(
-        '--hostname', metavar='NAME', default=argparse.SUPPRESS,
-        help='hostname to use for the virtual machine (default: sanitized VM name)')
+        "--hostname",
+        metavar="NAME",
+        default=argparse.SUPPRESS,
+        help="hostname to use for the virtual machine (default: sanitized VM name)",
+    )
     parser_archinstall.add_argument(
-        '--user', default='vmuser', help='name of user to set up in the VM')
+        "--user", default="vmuser", help="name of user to set up in the VM"
+    )
     parser_archinstall.add_argument(
-        '--iso', metavar='ISO', default=argparse.SUPPRESS,
-        help='Arch Linux ISO to use (default: download the latest ISO)')
+        "--iso",
+        metavar="ISO",
+        default=argparse.SUPPRESS,
+        help="Arch Linux ISO to use (default: download the latest ISO)",
+    )
     parser_archinstall.set_defaults(func=cmd_archinstall)
 
     config = configparser.ConfigParser()
-    config['Paths'] = {'VMs': '~/vms'}
-    config_home = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
-    config.read([os.path.join(config_home, 'vmpy.conf')])
-    for key, value in config['Paths'].items():
+    config["Paths"] = {"VMs": "~/vms"}
+    config_home = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+    config.read([os.path.join(config_home, "vmpy.conf")])
+    for key, value in config["Paths"].items():
         value = os.path.expanduser(value)
         if not os.path.isabs(value):
-            sys.exit(f'{key} must be absolute path')
-        config['Paths'][key] = value
+            sys.exit(f"{key} must be absolute path")
+        config["Paths"][key] = value
 
     args = parser.parse_args()
     args.func(args, config)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
