@@ -292,7 +292,7 @@ useradd -m fsgqa
 
 # Set up the new user account.
 useradd -m "${user}" -g users
-echo "${user}:${hostname}" | chpasswd
+echo "${user}:${user}" | chpasswd
 
 # Allow the new user to run sudo without a password.
 echo "${user} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/10-${user}"
