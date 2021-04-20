@@ -36,8 +36,11 @@ def prompt_yes_no(prompt: str, default: bool = True) -> bool:
 
 
 class ScriptConfig:
-    def __init__(self, *, vms_dir: Path, builds_dir: Optional[Path] = None) -> None:
+    def __init__(
+        self, *, vms_dir: Path, isos_dir: Path, builds_dir: Optional[Path] = None
+    ) -> None:
         self.vms_dir = vms_dir
+        self.isos_dir = isos_dir
         self.builds_dir = builds_dir
 
 
@@ -58,6 +61,7 @@ def get_script_config() -> ScriptConfig:
         paths[key] = path
     return ScriptConfig(
         vms_dir=paths["vms"],
+        isos_dir=paths.get("isos", paths["vms"] / "iso"),
         builds_dir=paths.get("builds"),
     )
 
@@ -212,7 +216,7 @@ def cmd_run(args: argparse.Namespace, script_config: ScriptConfig) -> None:
         os.execvp(qemu_args[0], qemu_args)
 
 
-def download_latest_archiso(mirror: str, iso_dir: Path) -> Path:
+def download_latest_archiso(mirror: str, isos_dir: Path) -> Path:
     with urllib.request.urlopen(mirror) as url:
         match = re.search(
             r"archlinux-\d{4}\.\d{2}\.\d{2}-x86_64\.iso", url.read().decode()
@@ -221,25 +225,17 @@ def download_latest_archiso(mirror: str, iso_dir: Path) -> Path:
             sys.exit(f"Installer ISO not found on {mirror}")
         latest: str = match.group()
 
-    iso_path = iso_dir / latest
+    iso_path = isos_dir / latest
     if not iso_path.exists():
-        if not prompt_yes_no(f"Download latest Arch Linux ISO ({latest})?"):
+        iso_url = mirror + "/" + latest
+        if not prompt_yes_no(f"Download {iso_url} to {isos_dir}?"):
             sys.exit(
                 "Use --iso if you have a previously downloaded ISO you want to use"
             )
-        iso_dir.mkdir(parents=True, exist_ok=True)
-        iso_part = iso_dir / (latest + ".part")
+        isos_dir.mkdir(parents=True, exist_ok=True)
+        iso_part = isos_dir / (latest + ".part")
         subprocess.run(
-            [
-                "curl",
-                "-L",
-                "-C",
-                "-",
-                "-f",
-                "-o",
-                iso_part,
-                mirror + "/" + latest,
-            ],
+            ["curl", "-L", "-C", "-", "-f", "-o", iso_part, iso_url],
             check=True,
         )
         # TODO: check checksum
@@ -548,7 +544,7 @@ def cmd_archinstall(args: argparse.Namespace, script_config: ScriptConfig) -> No
     else:
         iso = download_latest_archiso(
             args.pacman_mirrors[0].replace("$repo/os/$arch", "iso/latest"),
-            script_config.vms_dir / "iso",
+            script_config.isos_dir,
         )
 
     proxy_vars = "".join(

@@ -54,6 +54,9 @@ restart it with `vm.py run`. The default username and password are `vmuser`.
 [Paths]
 # Top-level VM directory. Defaults to "~/vms".
 VMs=~/vms
+# Directory to download installer ISOs to. Defaults to "iso" directory under
+# the VMs directory.
+ISOs=~/Downloads
 # Directory to look in for `vm.py run -k`. Unset by default.
 Builds=~/builds
 ```
