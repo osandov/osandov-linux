@@ -18,10 +18,11 @@ import subprocess
 import sys
 import termios
 import tty
+from typing import Any, List, Optional
 import urllib.request
 
 
-def prompt_yes_no(prompt, default=True):
+def prompt_yes_no(prompt: str, default: bool = True) -> bool:
     prompt += " [Y/n] " if default else " [y/N] "
     sys.stderr.write(prompt)
     sys.stderr.flush()
@@ -34,7 +35,7 @@ def prompt_yes_no(prompt, default=True):
         return default
 
 
-def cmd_create(args, config):
+def cmd_create(args: argparse.Namespace, config: configparser.ConfigParser) -> None:
     os.makedirs(config["Paths"]["VMs"], exist_ok=True)
     os.chdir(config["Paths"]["VMs"])
 
@@ -86,8 +87,10 @@ kernel_cmdline = [
         )
 
 
-def get_build_path(args, config):
-    kernel = getattr(args, "kernel", None)
+def get_build_path(
+    args: argparse.Namespace, config: configparser.ConfigParser
+) -> Optional[str]:
+    kernel: Optional[str] = getattr(args, "kernel", None)
     if kernel is None:
         return None
     if not kernel.startswith("/") and not kernel.startswith("."):
@@ -99,7 +102,9 @@ def get_build_path(args, config):
     return os.path.abspath(kernel)
 
 
-def get_qemu_args(args, build_path=None):
+def get_qemu_args(
+    args: argparse.Namespace, build_path: Optional[str] = None
+) -> List[str]:
     config = runpy.run_path(os.path.join(args.name, "config.py"))
 
     qemu_options = ["qemu-system-" + config.get("qemu_arch", "x86_64")]
@@ -147,7 +152,7 @@ def get_qemu_args(args, build_path=None):
     return qemu_options
 
 
-def cmd_run(args, config):
+def cmd_run(args: argparse.Namespace, config: configparser.ConfigParser) -> None:
     build_path = get_build_path(args, config)
     os.chdir(config["Paths"]["VMs"])
     qemu_args = get_qemu_args(args, build_path)
@@ -157,11 +162,14 @@ def cmd_run(args, config):
         os.execvp(qemu_args[0], qemu_args)
 
 
-def download_latest_archiso(mirror, config):
+def download_latest_archiso(mirror: str, config: configparser.ConfigParser) -> str:
     with urllib.request.urlopen(mirror) as url:
-        latest = re.search(
+        match = re.search(
             r"archlinux-\d{4}\.\d{2}\.\d{2}-x86_64\.iso", url.read().decode()
-        ).group()
+        )
+        if not match:
+            sys.exit(f"Installer ISO not found on {mirror}")
+        latest = match.group()
 
     iso_dir = os.path.join(config["Paths"]["VMs"], "iso")
     iso_path = os.path.join(iso_dir, latest)
@@ -190,7 +198,7 @@ def download_latest_archiso(mirror, config):
     return iso_path
 
 
-def install_script(args, proxy_vars):
+def install_script(args: argparse.Namespace, proxy_vars: str) -> str:
     script = [
         r"""#!/bin/bash
 
@@ -380,7 +388,7 @@ ARCHCHROOTEOF
 
 
 class MiniExpect:
-    def __init__(self, args):
+    def __init__(self, args: List[str]) -> None:
         self.pid, self.master = pty.fork()
         if self.pid == 0:
             os.execvp(args[0], args)
@@ -392,20 +400,26 @@ class MiniExpect:
         self._sel.register(self.master, selectors.EVENT_READ)
         self._sel.register(sys.stdin, selectors.EVENT_READ)
 
-    def __enter__(self):
+    def __enter__(self) -> "MiniExpect":
         self.old_attr = termios.tcgetattr(sys.stdin.fileno())
         self.old_flags = fcntl.fcntl(sys.stdin.fileno(), fcntl.F_GETFD)
         fcntl.fcntl(sys.stdin.fileno(), fcntl.F_SETFD, self.old_flags | os.O_NONBLOCK)
         tty.setraw(sys.stdin.fileno())
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, self.old_attr)
         fcntl.fcntl(sys.stdin.fileno(), fcntl.F_SETFD, self.old_flags)
         os.close(self.master)
         os.waitpid(self.pid, 0)
 
-    def interact(self, *, expect=None, write=None, until_eof=False):
+    def interact(
+        self,
+        *,
+        expect: Optional[bytes] = None,
+        write: Optional[bytes] = None,
+        until_eof: bool = False,
+    ) -> None:
         if write:
             writebuf = bytearray(write)
             self._sel.modify(self.master, selectors.EVENT_READ | selectors.EVENT_WRITE)
@@ -428,7 +442,7 @@ class MiniExpect:
                         sys.stdout.buffer.flush()
                         self._buf.extend(read)
                         if not found_expect:
-                            found_expect = expect in self._buf
+                            found_expect = expect in self._buf  # type: ignore[operator]
                         if len(self._buf) >= 8192:
                             del self._buf[:-4096]
                     if mask & selectors.EVENT_WRITE:
@@ -444,7 +458,9 @@ class MiniExpect:
                     )
 
 
-def cmd_archinstall(args, config):
+def cmd_archinstall(
+    args: argparse.Namespace, config: configparser.ConfigParser
+) -> None:
     args.packages = [
         # Base system
         "base",
@@ -531,7 +547,7 @@ def cmd_archinstall(args, config):
             raise e
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Manage QEMU virtual machines")
 
     subparsers = parser.add_subparsers(
