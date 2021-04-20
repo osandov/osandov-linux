@@ -7,7 +7,7 @@ import configparser
 import errno
 import fcntl
 import os
-import os.path
+from pathlib import Path
 import pty
 import re
 import runpy
@@ -18,7 +18,7 @@ import subprocess
 import sys
 import termios
 import tty
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 import urllib.request
 
 
@@ -35,11 +35,107 @@ def prompt_yes_no(prompt: str, default: bool = True) -> bool:
         return default
 
 
-def cmd_create(args: argparse.Namespace, config: configparser.ConfigParser) -> None:
-    os.makedirs(config["Paths"]["VMs"], exist_ok=True)
-    os.chdir(config["Paths"]["VMs"])
+class ScriptConfig:
+    def __init__(self, *, vms_dir: Path, builds_dir: Optional[Path] = None) -> None:
+        self.vms_dir = vms_dir
+        self.builds_dir = builds_dir
 
-    os.mkdir(args.name)
+
+def get_script_config() -> ScriptConfig:
+    config = configparser.ConfigParser()
+    config["Paths"] = {"VMs": "~/vms"}
+    xdg_config_home = os.getenv("XDG_CONFIG_HOME")
+    if xdg_config_home is None:
+        config_home = Path("~/.config").expanduser()
+    else:
+        config_home = Path(xdg_config_home)
+    config.read([config_home / "vmpy.conf"])
+    paths = {}
+    for key, value in config["Paths"].items():
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            sys.exit(f"{key} must be absolute path")
+        paths[key] = path
+    return ScriptConfig(
+        vms_dir=paths["vms"],
+        builds_dir=paths.get("builds"),
+    )
+
+
+class VMConfig:
+    def __init__(
+        self,
+        *,
+        qemu_arch: str,
+        qemu_options: Sequence[str],
+        kernel_cmdline: Sequence[str],
+    ) -> None:
+        self.qemu_arch = qemu_arch
+        self.qemu_options = qemu_options
+        self.kernel_cmdline = kernel_cmdline
+
+    def qemu_args(
+        self,
+        *,
+        build_path: Optional[Path] = None,
+        initrd: Optional[str] = None,
+        kernel_cmdline_append: Sequence[str] = (),
+        extra_args: Sequence[str] = (),
+    ) -> List[str]:
+        args = ["qemu-system-" + self.qemu_arch]
+        args.extend(self.qemu_options)
+
+        # Command-line arguments.
+        if build_path is not None:
+            newconfig = subprocess.check_output(
+                ["make", "-s", "listnewconfig"], cwd=build_path, universal_newlines=True
+            ).strip()
+            if newconfig:
+                sys.exit(
+                    "Kernel build .config is not up to date; cannot determine image name"
+                )
+            image_name = subprocess.check_output(
+                ["make", "-s", "image_name"], cwd=build_path, universal_newlines=True
+            ).strip()
+            args.extend(("-kernel", str(build_path / image_name)))
+            virtfs_opts = [
+                "local",
+                f"path={build_path}",
+                "security_model=none",
+                "readonly",
+                "mount_tag=modules",
+            ]
+            args.extend(("-virtfs", ",".join(virtfs_opts)))
+
+        if initrd is not None:
+            args.extend(("-initrd", initrd))
+
+        args.extend(extra_args)
+
+        # Don't use the VM script's default append line if a kernel image was
+        # not passed. If it was passed explicitly, let QEMU error out on the
+        # user.
+        if ("-kernel" in args or kernel_cmdline_append) and "-append" not in args:
+            kernel_cmdline = list(self.kernel_cmdline)
+            kernel_cmdline.extend(kernel_cmdline_append)
+            args.extend(("-append", " ".join(kernel_cmdline)))
+
+        return args
+
+
+def parse_vm_config(vm_dir: Path) -> VMConfig:
+    config = runpy.run_path(str(vm_dir / "config.py"))
+    return VMConfig(
+        qemu_arch=config.get("qemu_arch", "x86_64"),
+        qemu_options=config.get("qemu_options", []),
+        kernel_cmdline=config.get("kernel_cmdline", []),
+    )
+
+
+def cmd_create(args: argparse.Namespace, script_config: ScriptConfig) -> None:
+    vm_dir = script_config.vms_dir / args.name
+    vm_dir.mkdir(parents=True, exist_ok=True)
+
     print(f"Creating {args.name!r}, cpu={args.cpu} memory={args.memory}")
     subprocess.run(
         [
@@ -49,12 +145,12 @@ def cmd_create(args: argparse.Namespace, config: configparser.ConfigParser) -> N
             "qcow2",
             "-o",
             "nocow=on",
-            f"{args.name}/{args.name}.qcow2",
+            vm_dir / f"{args.name}.qcow2",
             args.size,
         ],
         check=True,
     )
-    with open(f"{args.name}/config.py", "w") as f:
+    with open(vm_dir / "config.py", "w") as f:
         f.write(
             f"""\
 qemu_options = [
@@ -88,98 +184,51 @@ kernel_cmdline = [
 
 
 def get_build_path(
-    args: argparse.Namespace, config: configparser.ConfigParser
-) -> Optional[str]:
+    args: argparse.Namespace, script_config: ScriptConfig
+) -> Optional[Path]:
     kernel: Optional[str] = getattr(args, "kernel", None)
     if kernel is None:
         return None
     if not kernel.startswith("/") and not kernel.startswith("."):
-        builds_dir = config.get("Paths", "Builds", fallback=None)
-        if builds_dir is not None:
-            build_path = os.path.join(builds_dir, kernel)
-            if os.path.exists(build_path):
+        if script_config.builds_dir is not None:
+            build_path = script_config.builds_dir / kernel
+            if build_path.exists():
                 return build_path
-    return os.path.abspath(kernel)
+    return Path(kernel).resolve()
 
 
-def get_qemu_args(
-    args: argparse.Namespace, build_path: Optional[str] = None
-) -> List[str]:
-    config = runpy.run_path(os.path.join(args.name, "config.py"))
-
-    qemu_options = ["qemu-system-" + config.get("qemu_arch", "x86_64")]
-    qemu_options.extend(config.get("qemu_options", []))
-
-    # Command-line arguments.
-    if build_path is not None:
-        newconfig = subprocess.check_output(
-            ["make", "-s", "listnewconfig"], cwd=build_path, universal_newlines=True
-        ).strip()
-        if newconfig:
-            sys.exit(
-                "Kernel build .config is not up to date; cannot determine image name"
-            )
-        image_name = subprocess.check_output(
-            ["make", "-s", "image_name"], cwd=build_path, universal_newlines=True
-        ).strip()
-        kernel_image_path = os.path.join(build_path, image_name)
-        qemu_options.extend(("-kernel", kernel_image_path))
-        virtfs_opts = [
-            "local",
-            f"path={build_path}",
-            "security_model=none",
-            "readonly",
-            "mount_tag=modules",
-        ]
-        qemu_options.extend(("-virtfs", ",".join(virtfs_opts)))
-
-    if hasattr(args, "initrd"):
-        qemu_options.extend(("-initrd", args.initrd))
-    if hasattr(args, "qemu_options"):
-        qemu_options.extend(args.qemu_options)
-
-    kernel_cmdline = config.get("kernel_cmdline", [])
-    if hasattr(args, "append"):
-        kernel_cmdline.extend(args.append)
-
-    # Don't use the VM script's default append line if a kernel image was not
-    # passed. If it was passed explicitly, let QEMU error out on the user.
-    if (
-        "-kernel" in qemu_options or hasattr(args, "append")
-    ) and "-append" not in qemu_options:
-        qemu_options.extend(("-append", " ".join(kernel_cmdline)))
-
-    return qemu_options
-
-
-def cmd_run(args: argparse.Namespace, config: configparser.ConfigParser) -> None:
-    build_path = get_build_path(args, config)
-    os.chdir(config["Paths"]["VMs"])
-    qemu_args = get_qemu_args(args, build_path)
+def cmd_run(args: argparse.Namespace, script_config: ScriptConfig) -> None:
+    build_path = get_build_path(args, script_config)
+    qemu_args = parse_vm_config(script_config.vms_dir / args.name).qemu_args(
+        build_path=build_path,
+        initrd=getattr(args, "initrd", None),
+        kernel_cmdline_append=getattr(args, "append", ()),
+        extra_args=args.qemu_options,
+    )
     if args.dry_run:
         print(" ".join(shlex.quote(arg) for arg in qemu_args))
     else:
+        os.chdir(script_config.vms_dir)
         os.execvp(qemu_args[0], qemu_args)
 
 
-def download_latest_archiso(mirror: str, config: configparser.ConfigParser) -> str:
+def download_latest_archiso(mirror: str, iso_dir: Path) -> Path:
     with urllib.request.urlopen(mirror) as url:
         match = re.search(
             r"archlinux-\d{4}\.\d{2}\.\d{2}-x86_64\.iso", url.read().decode()
         )
         if not match:
             sys.exit(f"Installer ISO not found on {mirror}")
-        latest = match.group()
+        latest: str = match.group()
 
-    iso_dir = os.path.join(config["Paths"]["VMs"], "iso")
-    iso_path = os.path.join(iso_dir, latest)
-
-    if not os.path.exists(iso_path):
+    iso_path = iso_dir / latest
+    if not iso_path.exists():
         if not prompt_yes_no(f"Download latest Arch Linux ISO ({latest})?"):
             sys.exit(
                 "Use --iso if you have a previously downloaded ISO you want to use"
             )
-        os.makedirs(iso_dir, exist_ok=True)
+        iso_dir.mkdir(parents=True, exist_ok=True)
+        iso_part = iso_dir / (latest + ".part")
         subprocess.run(
             [
                 "curl",
@@ -188,13 +237,13 @@ def download_latest_archiso(mirror: str, config: configparser.ConfigParser) -> s
                 "-",
                 "-f",
                 "-o",
-                iso_path + ".part",
+                iso_part,
                 mirror + "/" + latest,
             ],
             check=True,
         )
         # TODO: check checksum
-        os.rename(iso_path + ".part", iso_path)
+        iso_part.rename(iso_path)
     return iso_path
 
 
@@ -458,9 +507,7 @@ class MiniExpect:
                     )
 
 
-def cmd_archinstall(
-    args: argparse.Namespace, config: configparser.ConfigParser
-) -> None:
+def cmd_archinstall(args: argparse.Namespace, script_config: ScriptConfig) -> None:
     args.packages = [
         # Base system
         "base",
@@ -496,9 +543,13 @@ def cmd_archinstall(
     if not hasattr(args, "hostname"):
         args.hostname = re.sub(r"[^-a-z0-9]+", "-", args.name.lower()).strip("-")
 
-    if not hasattr(args, "iso"):
-        mirror = args.pacman_mirrors[0].replace("$repo/os/$arch", "iso/latest")
-        args.iso = download_latest_archiso(mirror, config)
+    if hasattr(args, "iso"):
+        iso = Path(args.iso)
+    else:
+        iso = download_latest_archiso(
+            args.pacman_mirrors[0].replace("$repo/os/$arch", "iso/latest"),
+            script_config.vms_dir / "iso",
+        )
 
     proxy_vars = "".join(
         [
@@ -508,15 +559,17 @@ def cmd_archinstall(
         ]
     )
 
-    os.chdir(config["Paths"]["VMs"])
-    qemu_args = get_qemu_args(args) + [
-        "-drive",
-        f"file={args.iso},format=raw,media=cdrom,readonly,if=none,id=cdrom",
-        "-device",
-        "ide-cd,drive=cdrom,bootindex=0",
-        "-no-reboot",
-    ]
+    qemu_args = parse_vm_config(script_config.vms_dir / args.name).qemu_args(
+        extra_args=[
+            "-drive",
+            f"file={iso.resolve()},format=raw,media=cdrom,readonly,if=none,id=cdrom",
+            "-device",
+            "ide-cd,drive=cdrom,bootindex=0",
+            "-no-reboot",
+        ]
+    )
 
+    os.chdir(script_config.vms_dir)
     with MiniExpect(qemu_args) as proc:
         try:
             proc.interact(expect=b"Arch Linux install medium")
@@ -691,18 +744,8 @@ def main() -> None:
     )
     parser_archinstall.set_defaults(func=cmd_archinstall)
 
-    config = configparser.ConfigParser()
-    config["Paths"] = {"VMs": "~/vms"}
-    config_home = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-    config.read([os.path.join(config_home, "vmpy.conf")])
-    for key, value in config["Paths"].items():
-        value = os.path.expanduser(value)
-        if not os.path.isabs(value):
-            sys.exit(f"{key} must be absolute path")
-        config["Paths"][key] = value
-
     args = parser.parse_args()
-    args.func(args, config)
+    args.func(args, get_script_config())
 
 
 if __name__ == "__main__":
