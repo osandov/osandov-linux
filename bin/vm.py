@@ -106,7 +106,7 @@ class VMConfig:
                 "local",
                 f"path={build_path}",
                 "security_model=none",
-                "readonly",
+                "readonly=on",
                 "mount_tag=modules",
             ]
             args.extend(("-virtfs", ",".join(virtfs_opts)))
