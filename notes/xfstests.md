@@ -1,6 +1,6 @@
-= xfstests Notes
+# xfstests Notes
 
-== Dependencies
+## Dependencies
 
 Here are the dependencies I've needed to install to run xfstests:
 
