@@ -39,7 +39,9 @@ make LSMOD=lsmod localmodconfig
 make savedefconfig
 
 echo "# Generated defconfig" > base.fragment
+echo "silent" >> base.fragment
 cat defconfig - << "EOF" >> base.fragment
+endsilent
 
 # General sanity.
 CONFIG_IKCONFIG=y
@@ -57,7 +59,6 @@ CONFIG_BPF_KPROBE_OVERRIDE=y
 CONFIG_DEBUG_INFO=y
 CONFIG_DEBUG_INFO_DWARF4=y
 CONFIG_DEBUG_KERNEL=y
-CONFIG_DEVKMEM=y
 CONFIG_KPROBES=y
 CONFIG_KPROBE_EVENTS=y
 CONFIG_UPROBES=y
@@ -91,7 +92,6 @@ CONFIG_XFS_RT=y
 
 # NFS.
 CONFIG_FSCACHE=m
-CONFIG_FSCACHE_HISTOGRAM=y
 CONFIG_FSCACHE_STATS=y
 CONFIG_LOCKD=m
 CONFIG_LOCKD_V4=y
