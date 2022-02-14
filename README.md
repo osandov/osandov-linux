@@ -120,4 +120,13 @@ Included filenames are interpreted relative to the current file.
 
 Finally, `kconfig.py` checks the generated configuration file to make sure that
 all options were set as desired (which may not be the case if some dependencies
-were not satisfied, for example).
+were not satisfied, for example). This can be disabled with the `silent`
+command and reenabled with the `endsilent` command:
+
+`file.config`:
+```
+silent
+CONFIG_THAT_MAY_NOT_EXIST=y
+endsilent
+CONFIG_FOO=m
+```

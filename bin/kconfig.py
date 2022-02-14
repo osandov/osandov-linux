@@ -9,15 +9,20 @@ import os.path
 import re
 import subprocess
 import sys
-from typing import Dict, TextIO
+from typing import Dict, TextIO, Tuple
 
 
 _include_re = re.compile(r'include\s*"((?:[^"\\]|\\.)*)"')
+_silent_re = re.compile(r"silent")
+_endsilent_re = re.compile(r"endsilent")
 _config_re = re.compile(r"CONFIG_([^=]+)=(.*)")
 _line_re = re.compile(r'("(?:[^"\\]|\\(?:.|$))*(?:"|$)|[^"\\#]|\\(?:.|$))*')
 
 
-def parse_kconfig(file: TextIO, allow_include: bool, config: Dict[str, str]) -> None:
+def parse_kconfig(
+    file: TextIO, augmented: bool, config: Dict[str, Tuple[str, bool]]
+) -> None:
+    silent = False
     for lineno, line in enumerate(file, 1):
         line = _line_re.match(line.rstrip()).group()
         if not line:
@@ -25,12 +30,16 @@ def parse_kconfig(file: TextIO, allow_include: bool, config: Dict[str, str]) -> 
 
         match = _config_re.fullmatch(line)
         if match:
-            config[match.group(1)] = match.group(2)
+            config[match.group(1)] = match.group(2), silent
             continue
 
-        if allow_include:
+        if augmented:
             match = _include_re.fullmatch(line)
             if match:
+                if file is sys.stdin:
+                    sys.exit(
+                        f"{file.name}:{lineno}: cannot include from standard input"
+                    )
                 include_path = os.path.join(
                     os.fsencode(os.path.dirname(file.name)),
                     codecs.escape_decode(match.group(1))[0],
@@ -39,10 +48,24 @@ def parse_kconfig(file: TextIO, allow_include: bool, config: Dict[str, str]) -> 
                     parse_kconfig(include_file, True, config)
                 continue
 
-        print(f"{file.name}:{lineno}:invalid syntax", file=sys.stderr)
+            match = _silent_re.fullmatch(line)
+            if match:
+                if silent:
+                    sys.exit(f"{file.name}:{lineno}: nested silent")
+                silent = True
+                continue
+
+            match = _endsilent_re.fullmatch(line)
+            if match:
+                if not silent:
+                    sys.exit(f"{file.name}:{lineno}: unmatched endsilent")
+                silent = False
+                continue
+
+        sys.exit(f"{file.name}:{lineno}: invalid syntax")
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate kernel configuration from one or more kernel configuration files."
     )
@@ -54,32 +77,33 @@ def main():
     )
     args = parser.parse_args()
 
-    config = {}
+    config: Dict[str, Tuple[str, bool]] = {}
     for path in args.configs:
         if path == "-":
-            parse_kconfig(sys.stdin, False, config)
+            parse_kconfig(sys.stdin, True, config)
         else:
             with open(path, "r") as f:
                 parse_kconfig(f, True, config)
 
     with open(".config", "w") as f:
-        for option, value in config.items():
+        for option, (value, silent) in config.items():
             f.write(f"CONFIG_{option}={value}\n")
 
     subprocess.check_call(["make", "olddefconfig"])
 
-    generated_config = {}
+    generated_config: Dict[str, Tuple[str, bool]] = {}
     with open(".config", "r") as f:
         parse_kconfig(f, False, generated_config)
     status = 0
-    for option, expected_value in config.items():
-        actual_value = generated_config.get(option, "n")
-        if actual_value != expected_value:
-            print(
-                f"Expected CONFIG_{option}={expected_value}, got {actual_value}",
-                file=sys.stderr,
-            )
-            status = 1
+    for option, (expected_value, silent) in config.items():
+        if not silent:
+            actual_value = generated_config.get(option, "n")[0]
+            if actual_value != expected_value:
+                print(
+                    f"Expected CONFIG_{option}={expected_value}, got {actual_value}",
+                    file=sys.stderr,
+                )
+                status = 1
     return status
 
 
