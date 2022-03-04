@@ -165,7 +165,7 @@ def main():
        extents of size `2^log` realtime extents that start in block `bbno` of
        the realtime bitmap. E.g., again assuming a 4 KiB block size and a 64
        KiB realtime extent size, `rsum[4][5]` is the number of free
-       `2^2 * 64 Ki = 1 Mi` extents that start in the range of logical block
+       `2^4 * 64 Ki = 1 Mi` extents that start in the range of logical block
        addresses between 10 Gi and 12 Gi.
     """
 
