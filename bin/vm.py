@@ -193,6 +193,8 @@ def get_build_path(
     kernel: Optional[str] = getattr(args, "kernel", None)
     if kernel is None:
         return None
+
+    kernel = os.path.expanduser(kernel)
     if not kernel.startswith("/") and not kernel.startswith("."):
         if script_config.builds_dir is not None:
             build_path = script_config.builds_dir / kernel
