@@ -5,8 +5,10 @@
 import argparse
 import math
 import re
-import subprocess
 import struct
+import subprocess
+import sys
+import time
 from types import SimpleNamespace
 
 
@@ -21,6 +23,15 @@ def humanize(number, unit="", precision=1):
     if n.is_integer():
         precision = 0
     return f"{n:.{precision}f}{prefix}{unit}"
+
+
+def get_seq(dev, ino):
+    output = subprocess.check_output(
+        ["xfs_db", "-r", dev, "-c", f"inode {ino}", "-c", "p core.atime"],
+        universal_newlines=True,
+    )
+    match = re.search(f"^core.atime.sec = (.*)$", output, flags=re.M)
+    return int(time.mktime(time.strptime(match.group(1))))
 
 
 def read_rt_inode(dev, ino, blocks):
@@ -38,8 +49,19 @@ def read_rt_inode(dev, ino, blocks):
     return data
 
 
-def print_overview(sb):
+def print_overview(sb, seq):
     rextsize_bytes = sb.blocksize * sb.rextsize
+
+    if seq == 0:
+        numerator = 0
+        denominator = 1
+    else:
+        log2 = seq.bit_length() - 1
+        resid = seq - (1 << log2)
+        numerator = (resid << 1) + 1
+        denominator = 1 << (log2 + 1)
+    next_new = (sb.rextents * numerator // denominator) % sb.rextents
+
     print(
         f"""\
 Filesystem block size is {humanize(sb.blocksize, "B")} ({sb.blocksize} bytes)
@@ -48,6 +70,12 @@ Realtime device size is {humanize(sb.rextents * rextsize_bytes, "B")}
 Filesystem has {sb.rbmblocks} realtime bitmap blocks
 Each realtime bitmap block accounts for {humanize(sb.blocksize * 8 * rextsize_bytes, "B")}
 Filesystem realtime summary has {sb.rsumlevels} levels
+Next location to allocate for a new file is extent {next_new}
+                                            byte {humanize(next_new * rextsize_bytes, "B")}
+                                            block {next_new // (sb.blocksize * 8)}
+                                            fraction {numerator} / {denominator}
+                                            percentage {numerator / denominator:.2%}
+                                            sequence number {seq}
 """,
         end="",
     )
@@ -122,8 +150,9 @@ def main():
     )
     args = parser.parse_args()
 
-    cmd = ["xfs_db", "-r", args.dev, "-c", "sb", "-c", "p"]
-    sb_output = subprocess.check_output(cmd, universal_newlines=True)
+    sb_output = subprocess.check_output(
+        ["xfs_db", "-r", args.dev, "-c", "sb", "-c", "p"], universal_newlines=True
+    )
     fields = [
         "blocksize",  # Filesystem block size in bytes.
         "rextents",  # Number of realtime extents
@@ -142,6 +171,8 @@ def main():
     sb.rsumlevels = sb.rextslog + 1
     # Size of the realtime summary in bytes.
     sb.rsumsize = 4 * sb.rsumlevels * sb.rbmblocks
+
+    seq = get_seq(args.dev, sb.rbmino)
 
     """
     The storage unit for an XFS filesystem is called a block. A block is
@@ -167,6 +198,13 @@ def main():
        KiB realtime extent size, `rsum[4][5]` is the number of free
        `2^4 * 64 Ki = 1 Mi` extents that start in the range of logical block
        addresses between 10 Gi and 12 Gi.
+
+    Additionally, the realtime bitmap inode uses its atime field to store a
+    sequence number that determines where on disk to allocate space for new
+    files. The sequence number translates to a fraction in the sequence 0, 1/2,
+    1/4, 3/4, 1/8, ..., 7/8, 1/16, ... This is multiplied by the number of
+    extents on the realtime device to give the target extent. The first
+    allocation for a new file will be as close to that extent as possible.
     """
 
     rsumdata = read_rt_inode(
@@ -177,7 +215,7 @@ def main():
         list(level) for level in struct.iter_unpack(f"{sb.rbmblocks}i", rsumdata)
     )
 
-    print_overview(sb)
+    print_overview(sb, seq)
 
     if args.dump_summary:
         print()
