@@ -166,7 +166,7 @@ qemu_options = [
     '-enable-kvm',
     '-smp', {args.cpu!r},
     '-m', {args.memory!r},
-    '-watchdog', 'i6300esb',
+    '-device', 'i6300esb',
     '-device', 'virtio-rng-pci',
 
     # Host forwarding can be enabled by adding to the -netdev option:
