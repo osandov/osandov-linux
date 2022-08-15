@@ -168,6 +168,7 @@ qemu_options = [
     '-m', {args.memory!r},
     '-device', 'i6300esb',
     '-device', 'virtio-rng-pci',
+    '-device', 'vmcoreinfo',
 
     # Host forwarding can be enabled by adding to the -netdev option:
     # hostfwd=[tcp|udp]:[hostaddr]:hostport-[guestaddr]:guestport

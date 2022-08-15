@@ -26,6 +26,11 @@ CONFIG_9P_FS_SECURITY=y
 CONFIG_NET_9P_VIRTIO=y
 CONFIG_NET_9P=y
 
+# Needed to capture useful QEMU memory dumps with the QEMU Monitor
+# dump-guest-memory command.
+CONFIG_FW_CFG_SYSFS=y
+CONFIG_KEXEC=y
+
 # Extra virtio drivers.
 CONFIG_HW_RANDOM=m
 CONFIG_HW_RANDOM_VIRTIO=m
