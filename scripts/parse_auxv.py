@@ -56,17 +56,31 @@ TYPES = {
 
 
 def main():
-    parser = argparse.ArgumentParser(description="parse an auxiliary vector (e.g., /proc/$pid/auxv) from standard input")
-    parser.add_argument("size", type=int, nargs="?", default=struct.calcsize("L"), help="size of vector types and values (default: sizeof(unsigned long))")
-    parser.add_argument("byteorder", choices=["little", "big"], nargs="?", default=sys.byteorder, help="endianness of types and values (default: system endianness)")
+    parser = argparse.ArgumentParser(
+        description="parse an auxiliary vector (e.g., /proc/$pid/auxv) from standard input"
+    )
+    parser.add_argument(
+        "size",
+        type=int,
+        nargs="?",
+        default=struct.calcsize("L"),
+        help="size of vector types and values (default: sizeof(unsigned long))",
+    )
+    parser.add_argument(
+        "byteorder",
+        choices=["little", "big"],
+        nargs="?",
+        default=sys.byteorder,
+        help="endianness of types and values (default: system endianness)",
+    )
     args = parser.parse_args()
 
     while True:
         buf = sys.stdin.buffer.read(2 * args.size)
         if len(buf) < 2 * args.size:
             break
-        type = int.from_bytes(buf[:args.size], args.byteorder)
-        value = int.from_bytes(buf[args.size:], args.byteorder)
+        type = int.from_bytes(buf[: args.size], args.byteorder)
+        value = int.from_bytes(buf[args.size :], args.byteorder)
         print(f"{TYPES.get(type, type)}: {value:#x} = {value}")
 
 
