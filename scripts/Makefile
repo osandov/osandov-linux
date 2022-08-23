@@ -1,4 +1,5 @@
 TARGETS := \
+	btrfs_check_space_cache \
 	btrfs_count_file_extent_items \
 	btrfs_dump_block_groups \
 	btrfs_extent_tree_du \
