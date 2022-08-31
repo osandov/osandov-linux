@@ -304,10 +304,12 @@ mount "${root_part}" /mnt
 # Install packages
 # dirmngr doesn't use http_proxy by default. Additionally, its built-in DNS
 # resolver doesn't seem to play nicely with QEMU.
-cat << "EOF" > /etc/pacman.d/gnupg/dirmngr.conf
+mkdir -p /etc/gnupg /etc/pacman.d/gnupg
+cat << "EOF" > /etc/gnupg/dirmngr.conf
 honor-http-proxy
 standard-resolver
 EOF
+cp /etc/gnupg/dirmngr.conf /etc/pacman.d/gnupg/dirmngr.conf
 # This will be copied to the installed system by pacstrap
 : > /etc/pacman.d/mirrorlist
 for mirror in "${mirrors[@]}"; do
@@ -321,6 +323,8 @@ host aur.archlinux.org > /dev/null
 
 pacstrap /mnt "${packages[@]}"
 genfstab -U /mnt >> /mnt/etc/fstab
+mkdir -p /mnt/etc/gnupg /mnt/etc/pacman.d/gnupg
+cp /etc/gnupg/dirmngr.conf /mnt/etc/gnupg/dirmngr.conf
 cp /etc/pacman.d/gnupg/dirmngr.conf /mnt/etc/pacman.d/gnupg/dirmngr.conf
 
 # arch-chroot bind mounts over /etc/resolv.conf, so we have to do this from
