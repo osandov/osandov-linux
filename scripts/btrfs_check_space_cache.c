@@ -172,7 +172,7 @@ static bool append_free_extent(__u64 start, __u64 size)
 	return true;
 }
 
-__u32 get_le32(const __le32 *ptr)
+static __u32 get_le32(const __le32 *ptr)
 {
 	__le32 x;
 	memcpy(&x, ptr, sizeof(x));

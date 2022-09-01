@@ -22,6 +22,9 @@ clean:
 btrfs_csum_file: btrfs_csum_file.c
 	$(CC) -g -Wall -O2 -o $@ $< -lbtrfs
 
+btrfs_check_space_cache: btrfs_check_space_cache.c
+	$(CC) -Wall -Wno-address-of-packed-member -O2 -o $@ $<
+
 gnu_build_id: gnu_build_id.c
 	$(CC) -g -Wall -O2 -o $@ $< -ldw -lelf
 
