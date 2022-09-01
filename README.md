@@ -1,15 +1,13 @@
-# My `~/linux` infrastructure
+# My development scripts
 
-This is a collection of scripts and notes that I use for Linux kernel
-development.
+This is a collection of scripts and notes that I use for Linux development.
 
 ## Top-level directories
 
 - `bin`: scripts that I add to my `$PATH`
-- `configs`: kernel configs
+- `configs`: Linux kernel Kconfig files
 - `modules`: experimental/testing kernel modules
 - `notes`: various development notes
-- `packages`: Arch Linux packages used for development
 - `scripts`: tests, bug reproducers, and other one-off scripts
 
 ## VM Setup
