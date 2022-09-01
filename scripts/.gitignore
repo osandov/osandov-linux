@@ -5,6 +5,7 @@
 /btrfs_extent_tree_du
 /btrfs_ino_lookup
 /btrfs_map_physical
+/debuginfod_client
 /gnu_build_id
 /kcore_to_vmcore
 /my_kdump_load
