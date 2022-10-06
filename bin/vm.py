@@ -531,7 +531,6 @@ def cmd_archinstall(args: argparse.Namespace, script_config: ScriptConfig) -> No
         "ltrace",
         "perf",
         "python",
-        "python2",
         "strace",
         "vim",
         # xfstests
