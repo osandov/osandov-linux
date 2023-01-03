@@ -280,6 +280,13 @@ fi
 systemctl restart systemd-networkd.service
 systemctl restart systemd-networkd-wait-online.service
 
+# We need pacman-init.service to populate the pacman keyring, but it is
+# configured to run after time-sync.target. If we're behind a firewall, this
+# will never succeed. But, QEMU should have set the clock correctly, so we can
+# bypass systemd-time-wait-sync.service by touching this file.
+touch /run/systemd/timesync/synchronized
+systemctl start pacman-init.service
+
 export gateway="$(ip route show default | gawk 'match($0, /^\s*default.*via\s+([0-9.]+)/, a) { print a[1]; exit }')"
 [[ -z $gateway ]] && { echo "Could not find gateway" >&2; exit 1; }
 
@@ -309,6 +316,9 @@ cat << "EOF" > /etc/gnupg/dirmngr.conf
 honor-http-proxy
 standard-resolver
 EOF
+mkdir -p /mnt/etc/gnupg
+cp /etc/gnupg/dirmngr.conf /mnt/etc/gnupg/dirmngr.conf
+# pacstrap will copy the entire /etc/pacman.d/gnupg directory to the chroot.
 cp /etc/gnupg/dirmngr.conf /etc/pacman.d/gnupg/dirmngr.conf
 # This will be copied to the installed system by pacstrap
 : > /etc/pacman.d/mirrorlist
@@ -323,9 +333,6 @@ host aur.archlinux.org > /dev/null
 
 pacstrap /mnt "${packages[@]}"
 genfstab -U /mnt >> /mnt/etc/fstab
-mkdir -p /mnt/etc/gnupg /mnt/etc/pacman.d/gnupg
-cp /etc/gnupg/dirmngr.conf /mnt/etc/gnupg/dirmngr.conf
-cp /etc/pacman.d/gnupg/dirmngr.conf /mnt/etc/pacman.d/gnupg/dirmngr.conf
 
 # arch-chroot bind mounts over /etc/resolv.conf, so we have to do this from
 # outside of the chroot.
