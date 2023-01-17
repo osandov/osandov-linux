@@ -299,7 +299,7 @@ export ip_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*inet\s+([0-9
 export mac_address="$(ip addr show dev "$nic" | gawk 'match($0, /^\s*link\/ether\s+([0-9A-Fa-f:]+)/, a) { print a[1]; exit }')"
 [[ -z $mac_address ]] && { echo "Could not find MAC address" >&2; exit 1; }
 
-export dns_server="$(gawk 'match($0, /^\s*nameserver\s+([0-9.]+)/, a) {print a[1]; exit}' /etc/resolv.conf)"
+export dns_server="$(resolvectl dns "$nic" | gawk '$4 ~ /[0-9.]+/ { print $4; exit }')"
 [[ -z $dns_server ]] && { echo "Could not find DNS server" >&2; exit 1; }
 
 # Prepare storage devices
