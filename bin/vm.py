@@ -533,6 +533,8 @@ def cmd_archinstall(args: argparse.Namespace, script_config: ScriptConfig) -> No
         "python",
         "strace",
         "vim",
+        "bpftrace",
+        "bcc",
         # xfstests
         "attr",
         "bc",
