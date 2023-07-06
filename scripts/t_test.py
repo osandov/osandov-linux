@@ -223,7 +223,7 @@ commands differ significantly, we report the relation.
             subprocess.check_call(args.pre, shell=True)
 
         output = subprocess.check_output(
-            args.commands[command_index], shell=True, text=True
+            args.commands[command_index], shell=True, universal_newlines=True
         )
         if record:
             for line in output.splitlines():
