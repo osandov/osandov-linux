@@ -98,7 +98,7 @@ commands differ significantly, we report the relation.
     parser.add_argument(
         "--equal-variances",
         action="store_true",
-        help="assume equal population variances and performance a Student's t-test instead",
+        help="assume equal population variances and perform a Student's t-test instead",
     )
 
     order_group = parser.add_mutually_exclusive_group()
