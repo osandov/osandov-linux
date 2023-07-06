@@ -21,7 +21,7 @@ class CustomFormatter(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="""Compare samples from two commands with a Student's t-test
+        description="""Compare samples from two commands with a Welch's t-test
 
 This script does a statistical comparison of the output of two commands. It can
 be used for A/B testing and performance benchmarking.
@@ -94,6 +94,11 @@ commands differ significantly, we report the relation.
         default=0.05,
         metavar="A",
         help="maximum p-value considered statistically significant",
+    )
+    parser.add_argument(
+        "--equal-variances",
+        action="store_true",
+        help="assume equal population variances and performance a Student's t-test instead",
     )
 
     order_group = parser.add_mutually_exclusive_group()
@@ -258,7 +263,9 @@ commands differ significantly, we report the relation.
                     ", ".join([f"{sample:f}" for sample in samples]),
                 )
 
-        result = scipy.stats.ttest_ind(samples1, samples2)
+        result = scipy.stats.ttest_ind(
+            samples1, samples2, equal_var=args.equal_variances
+        )
 
         print(f"Difference of sample means = {means[0] - means[1]:f}")
         print(f"Test statistic = {result.statistic:f}")
