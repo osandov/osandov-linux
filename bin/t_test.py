@@ -164,7 +164,7 @@ commands differ significantly, we report the relation.
     )
     args = parser.parse_args()
 
-    runs: Iterator[int]
+    runs: Iterator[Tuple[int, bool]]
     if getattr(args, "order", "alternating") == "alternating":
         runs = itertools.chain.from_iterable(
             itertools.chain(
@@ -250,22 +250,22 @@ commands differ significantly, we report the relation.
                             "  samples = "
                             + ", ".join([f"{sample:f}" for sample in samples])
                         )
-            if samples1 and samples2:
+            if means[0] is not None and means[1] is not None:
                 lines.append(f"Difference of sample means = {means[0] - means[1]:f}")
-            if run == num_runs:
-                result = scipy.stats.ttest_ind(
-                    samples1, samples2, equal_var=args.equal_variances
-                )
-                lines.append(f"Test statistic = {result.statistic:f}")
-                if result.pvalue <= args.significance_level:
-                    rejected = bold("REJECTED") + ", "
-                    if means[0] < means[1]:
-                        rejected += green("command1 < command2")
+                if run == num_runs:
+                    result = scipy.stats.ttest_ind(
+                        samples1, samples2, equal_var=args.equal_variances
+                    )
+                    lines.append(f"Test statistic = {result.statistic:f}")
+                    if result.pvalue <= args.significance_level:
+                        rejected = bold("REJECTED") + ", "
+                        if means[0] < means[1]:
+                            rejected += green("command1 < command2")
+                        else:
+                            rejected += red("command1 > command2")
                     else:
-                        rejected += red("command1 > command2")
-                else:
-                    rejected = "FAILED TO REJECT"
-                lines.append(f"P(command1 = command2) = {result.pvalue:%} ({rejected})")
+                        rejected = "FAILED TO REJECT"
+                    lines.append(f"P(command1 = command2) = {result.pvalue:%} ({rejected})")
 
         if progress:
             nonlocal prev_num_progress_lines
