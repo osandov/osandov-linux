@@ -120,6 +120,7 @@ commands differ significantly, we report the relation.
     )
 
     parser.add_argument(
+        "-w",
         "--warmup",
         type=int,
         default=0,
