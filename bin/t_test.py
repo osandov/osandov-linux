@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 from typing import Iterator, List, Tuple
+import warnings
 
 import numpy
 import scipy.stats
@@ -212,6 +213,8 @@ commands differ significantly, we report the relation.
 
     prev_num_progress_lines = 0
 
+    warnings.filterwarnings("error", category=RuntimeWarning)
+
     def print_progress(run: int) -> None:
         lines = []
 
@@ -253,19 +256,23 @@ commands differ significantly, we report the relation.
             if means[0] is not None and means[1] is not None:
                 lines.append(f"Difference of sample means = {means[0] - means[1]:f}")
                 if run == num_runs:
-                    result = scipy.stats.ttest_ind(
-                        samples1, samples2, equal_var=args.equal_variances
-                    )
-                    lines.append(f"Test statistic = {result.statistic:f}")
-                    if result.pvalue <= args.significance_level:
-                        rejected = bold("REJECTED") + ", "
-                        if means[0] < means[1]:
-                            rejected += green("command1 < command2")
-                        else:
-                            rejected += red("command1 > command2")
+                    try:
+                        result = scipy.stats.ttest_ind(
+                            samples1, samples2, equal_var=args.equal_variances
+                        )
+                    except RuntimeWarning as w:
+                        lines.append("warning: " + str(w))
                     else:
-                        rejected = "FAILED TO REJECT"
-                    lines.append(f"P(command1 = command2) = {result.pvalue:%} ({rejected})")
+                        lines.append(f"Test statistic = {result.statistic:f}")
+                        if result.pvalue <= args.significance_level:
+                            rejected = bold("REJECTED") + ", "
+                            if means[0] < means[1]:
+                                rejected += green("command1 < command2")
+                            else:
+                                rejected += red("command1 > command2")
+                        else:
+                            rejected = "FAILED TO REJECT"
+                        lines.append(f"P(command1 = command2) = {result.pvalue:%} ({rejected})")
 
         if progress:
             nonlocal prev_num_progress_lines
