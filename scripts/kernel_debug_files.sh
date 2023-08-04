@@ -38,6 +38,8 @@ if [ $# -ne 0 ]; then
 	usage err
 fi
 
+status=0
+
 release="$(uname -r)"
 
 found_vmlinux=
@@ -54,11 +56,14 @@ for path in "/usr/lib/debug/boot/vmlinux-$release" \
 done
 if [ -z "$found_vmlinux" ]; then
 	echo "vmlinux not found" >&2
-	exit 1
+	status=1
 fi
 
-cut -d' ' -f1 /proc/modules | while read -r module; do
-	module_path="$(modinfo -F filename "$module")"
+while read -r module _; do
+	if ! module_path="$(modinfo -F filename "$module")"; then
+		status=1
+		continue
+	fi
 
 	case "$module_path" in
 		*.ko.gz)
@@ -81,11 +86,13 @@ cut -d' ' -f1 /proc/modules | while read -r module; do
 		fi
 	done
 	if [ -z "$found_module" ]; then
-		if eu-readelf -S "$module_path" | grep -q '\.z?debug_info'; then
+		if eu-readelf -S "$module_path" | grep -q '\.z\?debug_info'; then
 			echo "$module_path"
 		else
-			echo "debug info for $module not found"
-			exit 1
+			echo "debug info for $module not found" >&2
+			status=1
 		fi
 	fi
-done
+done < /proc/modules
+
+exit $status
