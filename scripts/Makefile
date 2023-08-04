@@ -1,3 +1,5 @@
+CFLAGS ?= -Wall -O2 -g
+
 TARGETS := \
 	btrfs_check_space_cache \
 	btrfs_count_file_extent_items \
@@ -12,27 +14,18 @@ TARGETS := \
 	swapme \
 	time_disk_read
 
+btrfs_check_space_cache_CFLAGS := -Wno-address-of-packed-member
+btrfs_csum_file_LDLIBS := -lbtrfs
+debuginfod_client_LDLIBS := -ldebuginfod
+gnu_build_id_LDLIBS := -ldw -lelf
+kcore_to_vmcore_LDLIBS := -lelf
+
 all: $(TARGETS)
 
 clean:
 	rm -f $(TARGETS)
 
 %: %.c
-	$(CC) -Wall -O2 -o $@ $<
-
-btrfs_csum_file: btrfs_csum_file.c
-	$(CC) -g -Wall -O2 -o $@ $< -lbtrfs
-
-btrfs_check_space_cache: btrfs_check_space_cache.c
-	$(CC) -Wall -Wno-address-of-packed-member -O2 -o $@ $<
-
-debuginfod_client: debuginfod_client.c
-	$(CC) -g -Wall -O2 -o $@ $< -ldebuginfod
-
-gnu_build_id: gnu_build_id.c
-	$(CC) -g -Wall -O2 -o $@ $< -ldw -lelf
-
-kcore_to_vmcore: kcore_to_vmcore.c
-	$(CC) -g -Wall -O2 -o $@ $< -lelf
+	$(CC) $($@_CFLAGS) $(CFLAGS) $($@_CPPFLAGS) $(CPPFLAGS) $($@_LDFLAGS) $(LDFLAGS) $^ $($@_LDLIBS) $(LDLIBS) -o $@
 
 .PHONY: all clean
