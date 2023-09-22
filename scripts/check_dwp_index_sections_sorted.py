@@ -71,16 +71,15 @@ def main() -> None:
                 section_offset_table.byteswap()
                 section_size_table.byteswap()
 
-            last_end = array("I", [0] * section_count)
+            last_offset = array("I", [0] * section_count)
             for i in range(unit_count):
                 for j in range(section_count):
-                    size = section_size_table[i * section_count + j]
-                    if size == 0:
+                    if section_size_table[i * section_count + j] == 0:
                         continue
                     offset = section_offset_table[i * section_count + j]
-                    if offset < last_end[j]:
-                        sys.exit(f"Unit {i + 1} section {j} not sorted")
-                    last_end[j] = offset + size
+                    if offset < last_offset[j]:
+                        sys.exit(f"{section_name} unit {i + 1} section {j} not sorted ({hex(offset)} < {hex(last_offset[j])})")
+                    last_offset[j] = offset
 
     print("Sorted")
 
