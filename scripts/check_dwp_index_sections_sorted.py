@@ -78,7 +78,20 @@ def main() -> None:
                         continue
                     offset = section_offset_table[i * section_count + j]
                     if offset < last_offset[j]:
-                        sys.exit(f"{section_name} unit {i + 1} section {j} not sorted ({hex(offset)} < {hex(last_offset[j])})")
+                        if (
+                            i > 0
+                            and offset + 0x100000000
+                            == section_offset_table[(i - 1) * section_count + j]
+                            + section_size_table[(i - 1) * section_count + j]
+                        ):
+                            print(
+                                f"{section_name} unit {i + 1} section {j} overflowed 32-bit offset",
+                                file=sys.stderr,
+                            )
+                        else:
+                            sys.exit(
+                                f"{section_name} unit {i + 1} section {j} not sorted ({hex(offset)} < {hex(last_offset[j])})"
+                            )
                     last_offset[j] = offset
 
     print("Sorted")
@@ -86,4 +99,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
