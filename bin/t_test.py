@@ -121,6 +121,13 @@ commands differ significantly, we report the relation.
     )
 
     parser.add_argument(
+        "-t",
+        "--command-template",
+        metavar="TEMPLATE",
+        default="{}",
+        help="template for commands to run, substituting the string '{}' with command1 or command2",
+    )
+    parser.add_argument(
         "-w",
         "--warmup",
         type=int,
@@ -164,6 +171,10 @@ commands differ significantly, we report the relation.
         "commands", metavar="command2", action="append", help="second shell command"
     )
     args = parser.parse_args()
+
+    args.commands = [
+        args.command_template.replace("{}", command) for command in args.commands
+    ]
 
     runs: Iterator[Tuple[int, bool]]
     if getattr(args, "order", "alternating") == "alternating":
