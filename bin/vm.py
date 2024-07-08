@@ -155,7 +155,7 @@ qemu_options = [
     '-display', 'none',
     '-serial', 'mon:stdio',
 
-    '-cpu', 'kvm64',
+    '-cpu', 'host',
     '-enable-kvm',
     '-smp', {args.cpu!r},
     '-m', {args.memory!r},
