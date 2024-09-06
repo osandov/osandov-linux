@@ -10,6 +10,7 @@ TARGETS := \
 	debuginfod_client \
 	gnu_build_id \
 	kcore_to_vmcore \
+	malloc_usable_size \
 	my_kdump_load \
 	swapme \
 	time_disk_read
