@@ -1,6 +1,7 @@
 CFLAGS ?= -Wall -O2 -g
 
 TARGETS := \
+	alloc_hugepage \
 	btrfs_check_space_cache \
 	btrfs_count_file_extent_items \
 	btrfs_dump_block_groups \
