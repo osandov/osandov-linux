@@ -386,7 +386,6 @@ Address=${ip_address}
 Gateway=${gateway}
 DNS=${dns_server}
 EOF
-systemctl enable systemd-networkd.service systemd-resolved.service sshd.service
 
 # Configure miscellaneous settings
 echo "kernel.sysrq = 1" > /etc/sysctl.d/50-sysrq.conf
@@ -422,7 +421,6 @@ passwd -l root
 
 # Install vm-modules-mounter.
 curl -o /etc/systemd/system/vm-modules-mounter.service https://raw.githubusercontent.com/osandov/osandov-linux/master/scripts/vm-modules-mounter.service
-systemctl enable vm-modules-mounter.service
 
 # Install pacaur.
 sudo -u "${user}" bash -l << "SUDOEOF"
@@ -434,6 +432,9 @@ cd aurman
 makepkg -si --noconfirm --skippgpcheck
 SUDOEOF
 ARCHCHROOTEOF
+
+# systemctl can't communicate with D-Bus in the chroot.
+systemctl enable --root /mnt systemd-networkd.service systemd-resolved.service sshd.service vm-modules-mounter.service
 """
     )
     return "".join(script)
