@@ -322,7 +322,7 @@ done
 # For some unknown reason, pacstrap sometimes fails to resolve any hostnames;
 # resolving something beforehand seems to kick something in the stack so that
 # it works
-host aur.archlinux.org > /dev/null
+host aur.archlinux.org > /dev/null || true
 
 pacstrap /mnt "${packages[@]}"
 genfstab -U /mnt >> /mnt/etc/fstab
