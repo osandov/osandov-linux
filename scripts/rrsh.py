@@ -143,7 +143,7 @@ class Multiplexer:
                     try:
                         buf = os.read(key.fd, 4096)
                     except OSError as e:
-                        if e.errno == errno.EIO:
+                        if e.errno in {errno.EIO, errno.ECONNRESET}:
                             buf = b""
                         else:
                             raise
