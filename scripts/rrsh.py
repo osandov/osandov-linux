@@ -33,6 +33,13 @@ if TYPE_CHECKING:
 DEFAULT_PORT = 32254  # rsh uses port 514, this is -514 % 2**15 :)
 
 
+def _set_keepalive(sock: socket.socket) -> None:
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 300)
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 60)
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 10)
+
+
 class Multiplexer:
     class File:
         def __init__(
@@ -300,7 +307,7 @@ def server(args: argparse.Namespace) -> None:
             with sock:
                 if args.verbose:
                     log(f"Connection from {peername}")
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                _set_keepalive(sock)
                 sock.setblocking(False)
                 with raw_stdio(), Multiplexer() as multiplexer:
                     exit_status = 1
@@ -365,7 +372,7 @@ def client(args: argparse.Namespace) -> None:
         peername = sock.getpeername()
         if args.verbose:
             print(f"Connected to {peername} from {sock.getsockname()}", file=sys.stderr)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        _set_keepalive(sock)
         sock.setblocking(False)
         pid, pty_fd = pty.fork()
         if pid == 0:
